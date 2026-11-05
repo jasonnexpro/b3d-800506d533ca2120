@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Bâtiment 3D</title>
+<!-- Bâtiment 3D v2 — 05/11/2026 — nord, débords, cotes le long de la pente, faîtage, bipente non symétrique, dessin libre. Rien n'est enregistré. -->
+<style>
+:root{--g:#0f3d2e;--g2:#1d6b4f;--bg:#eef1ee;--card:#fff;--line:#d5ddd7;--txt:#1d2a24;--mut:#5b6b63;--red:#c62828;--warn:#9a5b00;--wbg:#fff4e0}
+*{box-sizing:border-box}
+html,body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--txt);background:var(--bg)}
+header{background:var(--g);color:#fff;padding:8px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative;z-index:3}
+header h1{font-size:17px;margin:0;flex:1;min-width:120px}
+.btn{border:0;border-radius:9px;padding:9px 12px;font-weight:700;font-size:14px;cursor:pointer;background:#fff;color:var(--g);font-family:inherit}
+.btn.y{background:#f2c230;color:#222}
+.btn.s{padding:6px 10px;font-size:13px;background:#e7efe9}
+.btn.on{background:var(--g);color:#fff}
+main{display:flex;height:calc(100vh - 52px)}
+#view{position:relative;flex:1;min-width:0;background:#eef2f4}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+#vtools{position:absolute;left:8px;bottom:8px;display:flex;gap:6px;flex-wrap:wrap}
+#vtools label{background:rgba(255,255,255,.92);border-radius:8px;padding:6px 9px;font-size:13px;font-weight:600;display:flex;gap:5px;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+#vwarn{position:absolute;right:8px;top:8px;max-width:60%;background:var(--wbg);color:var(--warn);border-radius:8px;padding:6px 9px;font-size:12px;font-weight:600;display:none;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+#vmsg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:20px;font-weight:600;color:var(--red)}
+#form{width:420px;overflow:auto;padding:10px 12px 40px;border-right:1px solid var(--line)}
+@media(max-width:520px){header h1{font-size:16px}.btn{padding:8px 10px}.btn .tx{display:none}}
+@media(max-width:820px){main{flex-direction:column;height:auto}#view{position:sticky;top:0;height:46vh;flex:none;z-index:2;border-bottom:1px solid var(--line)}#form{width:auto;border:0;overflow:visible}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 10px}
+.card h2{font-size:15px;margin:0 0 8px;color:var(--g)}
+.card h3{font-size:14px;margin:12px 0 6px;color:var(--g2);border-top:1px solid #edf1ee;padding-top:10px}
+.card h3:first-of-type{border-top:0;padding-top:0}
+.seg{display:flex;gap:4px;background:#e7efe9;border-radius:10px;padding:4px}
+.seg button{flex:1;border:0;background:transparent;border-radius:8px;padding:9px 4px;font-weight:700;font-size:13px;color:var(--g);cursor:pointer;font-family:inherit}
+.seg button.on{background:var(--g);color:#fff}
+.row{display:flex;align-items:center;gap:8px;margin:5px 0}
+.row>span:first-child{flex:1;font-size:14px}
+input.num,select,input.cnt{font:inherit;font-size:16px;padding:6px 8px;border:1px solid #b9c6be;border-radius:8px;background:#fff;color:var(--txt)}
+input.num{width:92px;text-align:right}
+input.cnt{width:70px;text-align:center}
+select{padding:6px 4px}
+.unit{color:var(--mut);font-size:13px;width:14px}
+.bad{border-color:var(--red)!important;background:#fff2f2!important}
+.hint{font-size:12px;color:var(--mut);margin:4px 0}
+.all{display:flex;gap:6px;align-items:center;margin:6px 0 2px;font-size:13px;color:var(--mut)}
+.all input{width:80px}
+.calc{font-size:13px;color:var(--g2);font-weight:600;margin:4px 0}
+.warn{background:var(--wbg);color:var(--warn);border-radius:8px;padding:6px 8px;font-size:13px;margin:4px 0;font-weight:600}
+.rose{display:grid;grid-template-columns:52px 1fr 52px;grid-template-rows:42px 150px 42px;gap:4px;margin-top:6px}
+.rose button{border:1px solid #cbd6cf;background:#f5f8f6;border-radius:9px;font-weight:800;font-size:15px;color:#9aa8a0;cursor:pointer;font-family:inherit}
+.rose button.on{background:var(--red);border-color:var(--red);color:#fff}
+.rose canvas{width:100%;height:100%;border:1px solid var(--line);border-radius:10px;background:#fafcfa}
+#ed{width:100%;border:1px solid var(--line);border-radius:10px;background:#fafcfa;touch-action:manipulation;display:block;margin:6px 0}
+.tools{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+#info table{width:100%;border-collapse:collapse;font-size:13px}
+#info td{padding:3px 2px;border-bottom:1px solid #edf1ee}
+#info td:last-child{text-align:right;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏗️ Bâtiment 3D</h1>
+  <button class="btn s" id="bFit" type="button" title="Recentrer la vue">⟲<span class="tx"> Recentrer</span></button>
+  <button class="btn" id="bImg" type="button">🖼️ Image</button>
+  <button class="btn y" id="bPdf" type="button">📄 PDF</button>
+</header>
+<main>
+  <div id="view">
+    <div id="vtools">
+      <label><input type="checkbox" id="oCotes" checked> Cotes</label>
+      <label><input type="checkbox" id="oTransp" checked> Toit transparent</label>
+    </div>
+    <div id="vwarn"></div>
+    <div id="vmsg"></div>
+  </div>
+  <div id="form"></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+'use strict';
+// ================================================================ outils
+const $=s=>document.querySelector(s);
+const num=v=>{const x=parseFloat(String(v==null?'':v).replace(',','.').replace(/\s/g,''));return isFinite(x)?x:NaN;};
+const f2=x=>isFinite(x)?(Math.round(x*100)/100).toFixed(2).replace('.',','):'—';
+const f1=x=>isFinite(x)?(Math.round(x*10)/10).toFixed(1).replace('.',','):'—';
+const H=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cum=a=>{let s=0;return a.map(v=>s+=(num(v)||0));};
+const sum=a=>a.reduce((s,v)=>s+(num(v)||0),0);
+const ORI=['nord','nord-est','est','sud-est','sud','sud-ouest','ouest','nord-ouest'];
+const FAIT={vent:'Faîtage ventilé',boudin:'Faîtage boudin',plat:'Faîtage plat'};
+const TYPES={mono:'Monopente',bi:'Bipente',irr:'Forme irrégulière'};
+const KEYS={mono:['m'],bi:['A','B'],irr:['A','B']};
+
+// ================================================================ données (rien n'est enregistré)
+const rep=(v,n)=>Array.from({length:n},()=>v);
+const st={
+  type:'bi',north:0,fait:'vent',
+  mono:{W:'10',h1:'5'},
+  bi:{W:'12',hA:'6',hB:'6'},
+  irr:{pts:[[2,2],[18,2],[18,8],[12,8],[12,13],[2,13]],lens:[],ridge:[[2,5],[18,5]],h:'5',mode:'ridge'},
+  vers:{
+    mono:{m:{deb:'0,30',pans:['0,40'].concat(rep('1,65',6)),last:'0,20',tDeb:'10,25',tHaut:'10,50',cass:''}},
+    bi:{A:{deb:'0,30',pans:['0,40'].concat(rep('1,50',4)),last:'0,22',tDeb:'6,37',tHaut:'6,62',cass:''},
+        B:{deb:'0,30',pans:['0,40'].concat(rep('1,50',4)),last:'0,22',tDeb:'6,37',tHaut:'6,62',cass:''}},
+    irr:{A:{deb:'0,30',pans:['0,40'].concat(rep('1,60',5)),last:'0,15',tDeb:'8,30',tHaut:'8,55',cass:''},
+         B:{deb:'0,30',pans:['0,40','1,60','1,60'],last:'0,31',tDeb:'3,66',tHaut:'3,91',cass:''}}},
+  trav:{mono:rep('6',5),bi:rep('6',5),irr:rep('4',4)}
+};
+const getK=k=>k.split('.').reduce((o,p)=>o[p],st);
+const setK=(k,v)=>{const p=k.split('.'),l=p.pop();p.reduce((o,q)=>o[q],st)[l]=v;};
+
+// ================================================================ orientation
+function northVec(){const a=st.north*Math.PI/4;return [Math.sin(a),-Math.cos(a)];}
+function oriName(d){const N=northVec(),E=[-N[1],N[0]];let b=Math.atan2(d[0]*E[0]+d[1]*E[1],d[0]*N[0]+d[1]*N[1])*180/Math.PI;if(b<0)b+=360;return ORI[Math.round(b/45)%8];}
+
+// ================================================================ géométrie plane
+function polyArea(P){let a=0;for(let i=0;i<P.length;i++){const p=P[i],q=P[(i+1)%P.length];a+=p[0]*q[1]-q[0]*p[1];}return a/2;}
+function inPoly(x,y,P){let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const a=P[i],b=P[j];if(((a[1]>y)!==(b[1]>y))&&(x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]))c=!c;}return c;}
+function clipHalf(P,f){const out=[];for(let i=0;i<P.length;i++){const a=P[i],b=P[(i+1)%P.length],fa=f(a),fb=f(b);if(fa>=0)out.push(a);if((fa>=0)!==(fb>=0)){const k=fa/(fa-fb);out.push([a[0]+k*(b[0]-a[0]),a[1]+k*(b[1]-a[1])]);}}
+  return out.filter((p,i)=>{const q=out[(i+1)%out.length];return Math.hypot(p[0]-q[0],p[1]-q[1])>1e-6;});}
+// segments de la droite « f(p)=v » dans le polygone, exprimés avec la coordonnée g(p)
+function segs(P,f,g,v){const xs=[];for(let i=0;i<P.length;i++){const A=P[i],B=P[(i+1)%P.length],fa=f(A),fb=f(B);if((fa<=v&&fb>v)||(fb<=v&&fa>v)){const k=(v-fa)/(fb-fa);xs.push(g(A)+k*(g(B)-g(A)));}}xs.sort((a,b)=>a-b);const r=[];for(let i=0;i+1<xs.length;i+=2)if(xs[i+1]-xs[i]>1e-6)r.push([xs[i],xs[i+1]]);return r;}
+// forme irrégulière : le dessin donne les directions, les longueurs tapées donnent les vraies mesures
+function irrReal(){const S=st.irr.pts,n=S.length;if(n<3)return {P:[],S,close:0};const P=[[S[0][0],S[0][1]]];let x=S[0][0],y=S[0][1];
+  for(let i=0;i<n-1;i++){const a=S[i],b=S[i+1],dx=b[0]-a[0],dy=b[1]-a[1],sl=Math.hypot(dx,dy)||1;const l=num(st.irr.lens[i]);const L=l>0?l:sl;x+=dx/sl*L;y+=dy/sl*L;P.push([x,y]);}
+  return {P,S,close:Math.hypot(P[0][0]-x,P[0][1]-y)};}
+function affineFit(S,P){// meilleure correspondance dessin → mesures réelles (pour placer le faîtage)
+  const M=[[0,0,0],[0,0,0],[0,0,0]],bx=[0,0,0],by=[0,0,0];S.forEach((s,i)=>{const v=[s[0],s[1],1];for(let r=0;r<3;r++){for(let c=0;c<3;c++)M[r][c]+=v[r]*v[c];bx[r]+=v[r]*P[i][0];by[r]+=v[r]*P[i][1];}});
+  const det=m=>m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);const D=det(M);if(Math.abs(D)<1e-9)return p=>p;
+  const sol=b=>[0,1,2].map(k=>det(M.map((row,r)=>row.map((v,c)=>c===k?b[r]:v)))/D);const ax=sol(bx),ay=sol(by);return p=>[ax[0]*p[0]+ax[1]*p[1]+ax[2],ay[0]*p[0]+ay[1]*p[1]+ay[2]];}
+
+// ================================================================ modèle (sert à la 3D, aux alertes et au PDF)
+function vNums(v){const c=cum(v.pans),last=num(v.last),tH=num(v.tHaut),tD=num(v.tDeb),deb=num(v.deb)||0;const sumR=(c.length?c[c.length-1]:0)+(isFinite(last)?last:0);return {deb,c,last,tH,tD,R:tH>0?tH:sumR,sumR};}
+function mkV(key,poly,O,e,d,run,hTop,hEave,n,ridge){const rise=hTop-hEave,Rw=Math.hypot(run,rise),cs=run/Rw,slope=rise/run;
+  const dist=p=>(p[0]-O[0])*d[0]+(p[1]-O[1])*d[1],along=p=>(p[0]-O[0])*e[0]+(p[1]-O[1])*e[1];
+  const pt=(ds,al)=>[O[0]+d[0]*ds+e[0]*al,O[1]+d[1]*ds+e[1]*al],y=ds=>hTop-slope*ds;const dh=n.deb*cs;
+  const roof=poly.map(p=>dist(p)>=run-0.01?[p[0]+d[0]*dh,p[1]+d[1]*dh]:p);
+  return {key,poly,roof,O,e,d,run,hTop,hEave,rise,Rw,cs,slope,dist,along,pt,y,dh,n,ridge,sd:s=>run+dh-s*cs,name:'Versant '+oriName(d)};}
+function computeModel(){const t=st.type,W=[],M={type:t,warns:W,vs:[]};const trv=st.trav[t];M.T=cum(trv);M.Ltr=sum(trv);
+  if(trv.some(x=>!(num(x)>0)))W.push('Une largeur de travée est vide ou à zéro.');
+  const ns={};KEYS[t].forEach(k=>ns[k]=vNums(st.vers[t][k]));
+  if(t==='mono'){const Wd=num(st.mono.W),h1=num(st.mono.h1),n=ns.m;if(!(Wd>0&&h1>0)){W.push('Remplis la largeur et la hauteur du mur bas.');return M;}
+    const Rw=n.R-n.deb;if(!(Rw>Wd)){W.push(`Le toit (${f2(Rw)} m sans le débord) est plus court que la largeur (${f2(Wd)} m) : vérifie « bas → haut du faîtage ».`);return M;}
+    const L=M.Ltr>0?M.Ltr:1;M.P=[[0,0],[L,0],[L,Wd],[0,Wd]];Object.assign(M,{Wd,h1,h2:h1+Math.sqrt(Rw*Rw-Wd*Wd)});
+    M.vs.push(mkV('m',M.P,[0,Wd],[1,0],[0,-1],Wd,M.h2,h1,n,false));}
+  else if(t==='bi'){const Wd=num(st.bi.W),hA=num(st.bi.hA),hB=num(st.bi.hB);if(!(Wd>0&&hA>0&&hB>0)){W.push('Remplis la largeur et les deux hauteurs de mur.');return M;}
+    const rA=ns.A.R-ns.A.deb,rB=ns.B.R-ns.B.deb,dz=Wd,dy=hB-hA,dd=Math.hypot(dz,dy);
+    if(!(rA>0&&rB>0)){W.push('Remplis « bas → haut du faîtage » pour les deux versants.');return M;}
+    if(rA+rB<=dd){W.push('Les deux versants sont trop courts pour se rejoindre au faîtage : vérifie les cotes « bas → haut du faîtage ».');return M;}
+    if(Math.abs(rA-rB)>=dd){W.push('Un versant est beaucoup trop long par rapport à l’autre : vérifie les cotes « bas → haut du faîtage ».');return M;}
+    const a=(rA*rA-rB*rB+dd*dd)/(2*dd),hh=Math.sqrt(Math.max(0,rA*rA-a*a));const zr=a*dz/dd-hh*dy/dd,yr=hA+a*dy/dd+hh*dz/dd;
+    if(!(zr>0.05&&zr<Wd-0.05)){W.push('Avec ces cotes, le faîtage tombe en dehors des murs : vérifie les cotes des versants.');return M;}
+    const L=M.Ltr>0?M.Ltr:1;M.P=[[0,0],[L,0],[L,Wd],[0,Wd]];Object.assign(M,{Wd,hA,hB,zr,yr});
+    M.vs.push(mkV('A',[[0,0],[L,0],[L,zr],[0,zr]],[0,zr],[1,0],[0,-1],zr,yr,hA,ns.A,true));
+    M.vs.push(mkV('B',[[0,zr],[L,zr],[L,Wd],[0,Wd]],[0,zr],[1,0],[0,1],Wd-zr,yr,hB,ns.B,true));}
+  else{const R=irrReal();if(R.P.length<3){W.push('Dessine le contour du bâtiment (au moins 3 coins).');return M;}
+    if(st.irr.lens.some((v,i)=>i<R.P.length-1&&v!==''&&!(num(v)>0)))W.push('Une longueur de côté n’est pas un nombre.');
+    const h=num(st.irr.h);if(!(h>0)){W.push('Remplis la hauteur des murs.');return M;}
+    if(st.irr.ridge.length<2){W.push('Place le faîtage : touche 2 points sur le dessin.');return M;}
+    const map=affineFit(R.S,R.P),R1=map(st.irr.ridge[0]),R2=map(st.irr.ridge[1]),el=Math.hypot(R2[0]-R1[0],R2[1]-R1[1]);if(el<0.1){W.push('Les 2 points du faîtage sont trop proches.');return M;}
+    const e=[(R2[0]-R1[0])/el,(R2[1]-R1[1])/el],dA=[-e[1],e[0]],P=R.P;M.P=P;M.R1=R1;M.R2=R2;M.close=R.close;
+    const halves=[1,-1].map(sg=>{const d=[dA[0]*sg,dA[1]*sg];const f=p=>(p[0]-R1[0])*d[0]+(p[1]-R1[1])*d[1];const poly=clipHalf(P,f);return {d,poly,run:poly.length>=3?Math.max(...poly.map(f)):0};});
+    if(halves.some(x=>x.poly.length<3||x.run<0.2)){W.push('Le faîtage doit traverser le bâtiment (un versant de chaque côté).');return M;}
+    const rises=halves.map((x,i)=>{const n=ns[KEYS.irr[i]],Rw=n.R-n.deb;return Rw>x.run?Math.sqrt(Rw*Rw-x.run*x.run):NaN;});
+    halves.forEach((x,i)=>{if(!isFinite(rises[i]))W.push(`${'Versant '+oriName(x.d)} : le toit est plus court que la distance mur → faîtage (${f2(x.run)} m).`);});
+    if(!rises.every(isFinite))return M;
+    if(Math.abs(rises[0]-rises[1])>0.05)W.push(`Les deux versants donnent des hauteurs de faîtage différentes (${f2(h+rises[0])} et ${f2(h+rises[1])} m) : la moyenne est utilisée.`);
+    const hr=h+(rises[0]+rises[1])/2;Object.assign(M,{h,yr:hr});
+    halves.forEach((x,i)=>M.vs.push(mkV(KEYS.irr[i],x.poly,R1,e,x.d,x.run,hr,h,ns[KEYS.irr[i]],true)));}
+  // contrôles des cotes de chaque versant
+  M.vs.forEach(v=>{const n=v.n,nm=v.name;if(st.vers[t][v.key].pans.some(x=>!(num(x)>=0)))W.push(nm+' : une distance de panne est vide.');
+    if(n.tH>0&&isFinite(n.last)&&Math.abs(n.sumR-n.tH)>0.02)W.push(`${nm} : pannes + dernière panne = ${f2(n.sumR)} m, mais « bas → haut du faîtage » = ${f2(n.tH)} m.`);
+    if(n.tD>0&&n.tH>0&&n.tD>n.tH)W.push(nm+' : « début du faîtage » est plus loin que « haut du faîtage ».');
+    if(!(n.tD>0))W.push(nm+' : remplis « bas → début du faîtage ».');});
+  const v0=M.vs[0];let emin=Infinity,emax=-Infinity;M.P.forEach(p=>{emin=Math.min(emin,v0.along(p));emax=Math.max(emax,v0.along(p));});Object.assign(M,{emin,emax,L:emax-emin,ok:true});
+  if(t==='irr'&&M.Ltr>0&&Math.abs(M.Ltr-M.L)>0.05)W.push(`Les travées font ${f2(M.Ltr)} m au total, mais le bâtiment fait ${f2(M.L)} m le long du faîtage.`);
+  return M;}
+
+// ================================================================ formulaire
+function fld(label,k,unit){const v=getK(k);return `<div class="row"><span>${label}</span><input class="num${isFinite(num(v))?'':' bad'}" inputmode="decimal" data-k="${k}" value="${H(v)}"><span class="unit">${unit||'m'}</span></div>`;}
+function list(title,k,lab){const a=getK(k);let h=(title?`<div class="row"><span><b>${title}</b> — nombre</span><input class="cnt" inputmode="numeric" data-cnt="${k}" value="${a.length}"></div>`:'');
+  a.forEach((v,i)=>{h+=`<div class="row"><span>${lab(i)}</span><input class="num${isFinite(num(v))?'':' bad'}" inputmode="decimal" data-l="${k}" data-i="${i}" value="${H(v)}"><span class="unit">m</span></div>`;});
+  if(a.length>2)h+=`<div class="all">Même valeur pour les suivantes : <input class="num" inputmode="decimal" data-allv="${k}"><button class="btn s" type="button" data-all="${k}">Appliquer</button></div>`;return h;}
+const panLab=i=>i===0?'Bord bas → P1':`P${i} → P${i+1}`;
+let model=null;
+function renderForm(){const sy=window.scrollY,fs=$('#form').scrollTop;const t=st.type;model=computeModel();const M=model;
+  let h=`<section class="card"><h2>1. Type de bâtiment</h2><div class="seg">${Object.keys(TYPES).map(k=>`<button type="button" data-t="${k}" class="${t===k?'on':''}">${TYPES[k]}</button>`).join('')}</div></section>`;
+  h+=`<section class="card"><h2>2. Où est le nord ?</h2><p class="hint">Touche le côté du dessin où se trouve le nord. Les versants prennent leur nom tout seuls.</p>
+   <div class="rose">${[7,0,1,6,'c',2,5,4,3].map(k=>k==='c'?'<canvas id="mini"></canvas>':`<button type="button" data-n="${k}" class="${st.north===k?'on':''}">${st.north===k?'N':'·'}</button>`).join('')}</div></section>`;
+  h+=`<section class="card"><h2>3. Dimensions</h2>`;
+  if(t==='mono')h+=fld('Largeur (mur à mur)','mono.W')+fld('Hauteur du mur bas','mono.h1')+`<p class="hint">La longueur = la somme des travées. La hauteur du mur haut est calculée avec les cotes du versant.</p>`;
+  else if(t==='bi'){const nA=M.vs[0]?M.vs[0].name:'Versant 1',nB=M.vs[1]?M.vs[1].name:'Versant 2';h+=fld('Largeur (mur à mur)','bi.W')+fld('Hauteur du mur — '+nA.replace('Versant ','côté '),'bi.hA')+fld('Hauteur du mur — '+nB.replace('Versant ','côté '),'bi.hB')+`<p class="hint">Le faîtage se place tout seul avec les cotes des deux versants (pas forcément au milieu).</p>`;}
+  else h+=irrHtml(M);
+  h+=`</section><section class="card"><h2>4. Type de faîtage</h2><div class="seg">${Object.keys(FAIT).map(k=>`<button type="button" data-f="${k}" class="${st.fait===k?'on':''}">${FAIT[k].replace('Faîtage ','')}</button>`).join('')}</div></section>`;
+  h+=`<section class="card"><h2>5. Versants</h2><p class="hint">Toutes les cotes sont mesurées <b>le long de la pente</b>, en partant du <b>bout de la tôle</b> en bas du toit.</p>`;
+  KEYS[t].forEach((k,i)=>{const v=st.vers[t][k],p=`vers.${t}.${k}`,nm=M.vs[i]?M.vs[i].name:(KEYS[t].length>1?'Versant '+(i+1):'Versant');
+    h+=`<h3>${H(nm)}</h3>`+fld('Débord (bout de tôle → nu du mur)',p+'.deb')+list('Pannes',p+'.pans',panLab)+fld('Dernière panne → haut du faîtage',p+'.last')+fld('Bas → début du faîtage',p+'.tDeb')+fld('Bas → haut du faîtage',p+'.tHaut');
+    h+=`<div class="row"><span>Cassure de pente</span><select data-k="${p}.cass"><option value="">aucune</option>${v.pans.map((x,j)=>`<option value="${j+1}"${String(v.cass)===String(j+1)?' selected':''}>au niveau de P${j+1}</option>`).join('')}</select></div>`;
+    h+=`<div class="calc" id="sum_${k}"></div>`;});
+  h+=`</section><section class="card"><h2>6. Travées</h2>`+list('Travées',`trav.${t}`,i=>'Travée '+(i+1))+(t==='irr'?'<p class="hint">Les travées se suivent le long du faîtage.</p>':'')+`</section>`;
+  h+=`<section class="card"><h2>Résultat</h2><div id="warns"></div><div id="info"></div></section>`;
+  $('#form').innerHTML=h;$('#form').scrollTop=fs;window.scrollTo(0,sy);
+  drawMini();if(t==='irr')drawEd();updateInfo();}
+function irrHtml(M){const R=irrReal(),n=st.irr.pts.length,md=st.irr.mode;let h=`<p class="hint">① Touche les coins du bâtiment sur le quadrillage (touche le 1er coin pour fermer). ② Tape les vraies longueurs. ③ Touche 2 points pour placer le faîtage.</p>
+   <div class="tools"><button type="button" class="btn s${md==='poly'?' on':''}" data-md="poly">✏️ Contour</button><button type="button" class="btn s${md==='ridge'?' on':''}" data-md="ridge">🔺 Faîtage</button>
+   <button type="button" class="btn s" id="edUndo">↶ Annuler</button><button type="button" class="btn s" id="edNew">🗑️ Nouveau dessin</button></div>
+   <canvas id="ed"></canvas>`;
+  if(n>=3){h+=`<p class="hint">Longueurs réelles des côtés (case vide = longueur du dessin) :</p>`;
+    for(let i=0;i<n-1;i++){const a=st.irr.pts[i],b=st.irr.pts[i+1],sl=Math.hypot(b[0]-a[0],b[1]-a[1]);const v=st.irr.lens[i]||'';h+=`<div class="row"><span>Côté C${i+1}</span><input class="num${v===''||num(v)>0?'':' bad'}" inputmode="decimal" data-len="${i}" value="${H(v)}" placeholder="${f2(sl)}"><span class="unit">m</span></div>`;}
+    h+=`<div class="calc">Côté C${n} (fermeture, calculé) : ${f2(R.close)} m</div>`;}
+  h+=fld('Hauteur des murs (bas des versants)','irr.h');return h;}
+
+// ---------------- petits dessins vus de dessus
+function planFit(cv,P,pad){const r=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1;cv.width=Math.max(10,r.width*dpr);cv.height=Math.max(10,r.height*dpr);const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;P.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
+  const s=Math.min((r.width-2*pad)/Math.max(x1-x0,0.01),(r.height-2*pad)/Math.max(y1-y0,0.01));const ox=(r.width-(x1-x0)*s)/2-x0*s,oy=(r.height-(y1-y0)*s)/2-y0*s;return {g,T:p=>[ox+p[0]*s,oy+p[1]*s],w:r.width,h:r.height};}
+function drawMini(){const cv=$('#mini');if(!cv)return;const M=model;if(!M||!M.ok){const c=planFit(cv,[[0,0],[1,1]],10);c.g.fillStyle='#9aa8a0';c.g.font='12px Arial';c.g.textAlign='center';c.g.fillText('Complète les dimensions',c.w/2,c.h/2);return;}
+  const {g,T,w,h}=planFit(cv,M.P,22);g.beginPath();M.P.forEach((p,i)=>{const q=T(p);i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);});g.closePath();g.fillStyle='#e3ece6';g.fill();g.strokeStyle='#1d2a24';g.lineWidth=2;g.stroke();
+  M.vs.forEach(v=>{// ligne haute (faîtage) en pointillé rouge, nom du versant et flèche de pente
+    const sg=segs(v.poly,v.dist,v.along,0.001);sg.forEach(([a0,a1])=>{const p=T(v.pt(0,a0)),q=T(v.pt(0,a1));g.strokeStyle='#c62828';g.setLineDash([5,3]);g.lineWidth=2;g.beginPath();g.moveTo(p[0],p[1]);g.lineTo(q[0],q[1]);g.stroke();g.setLineDash([]);});
+    let cx=0,cy=0;v.poly.forEach(p=>{cx+=p[0];cy+=p[1];});cx/=v.poly.length;cy/=v.poly.length;const c=T([cx,cy]);g.fillStyle='#1d6b4f';g.font='bold 11px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText(v.name.replace('Versant ',''),c[0],c[1]);
+    const a=T([cx+v.d[0]*v.run*0.18,cy+v.d[1]*v.run*0.18]);g.strokeStyle='#1d6b4f';g.lineWidth=1.5;g.beginPath();g.moveTo(c[0],c[1]+8);g.lineTo(a[0],a[1]+8);g.stroke();});
+  const N=northVec(),cx=w/2,cy=h/2,R=Math.min(w,h)/2-6;g.fillStyle='#c62828';g.beginPath();g.moveTo(cx+N[0]*R,cy+N[1]*R);g.lineTo(cx+N[0]*(R-12)-N[1]*5,cy+N[1]*(R-12)+N[0]*5);g.lineTo(cx+N[0]*(R-12)+N[1]*5,cy+N[1]*(R-12)-N[0]*5);g.fill();}
+let edGeo=null;const GX=24,GY=16;
+function drawEd(){const cv=$('#ed');if(!cv)return;const w=cv.getBoundingClientRect().width;cv.style.height=Math.round(w*GY/GX)+'px';const r=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1;cv.width=r.width*dpr;cv.height=r.height*dpr;const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  const c=r.width/GX;edGeo={c};g.clearRect(0,0,r.width,r.height);g.strokeStyle='#e1e8e3';g.lineWidth=1;for(let i=0;i<=GX;i++){g.beginPath();g.moveTo(i*c,0);g.lineTo(i*c,r.height);g.stroke();}for(let j=0;j<=GY;j++){g.beginPath();g.moveTo(0,j*c);g.lineTo(r.width,j*c);g.stroke();}
+  const S=st.irr.pts,T=p=>[p[0]*c,p[1]*c];
+  if(S.length>=2){g.beginPath();S.forEach((p,i)=>{const q=T(p);i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);});if(S.length>=3)g.closePath();g.fillStyle='rgba(29,107,79,.12)';if(S.length>=3)g.fill();g.strokeStyle='#1d2a24';g.lineWidth=2.5;g.stroke();}
+  const R=irrReal();S.forEach((p,i)=>{if(S.length<3&&i===S.length-1)return;const q=S[(i+1)%S.length];if(S.length<3&&i>=S.length-1)return;const a=T(p),b=T(q);const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2;
+    const L=i<S.length-1?(num(st.irr.lens[i])>0?num(st.irr.lens[i]):Math.hypot(q[0]-p[0],q[1]-p[1])):R.close;g.font='bold 11px Arial';const txt='C'+(i+1)+' '+f2(L);const tw=g.measureText(txt).width+8;g.fillStyle='rgba(255,255,255,.9)';g.fillRect(mx-tw/2,my-8,tw,16);g.fillStyle='#1d6b4f';g.textAlign='center';g.textBaseline='middle';g.fillText(txt,mx,my);});
+  S.forEach((p,i)=>{const q=T(p);g.fillStyle=i===0?'#1d6b4f':'#1d2a24';g.beginPath();g.arc(q[0],q[1],i===0?7:5,0,7);g.fill();});
+  const rg=st.irr.ridge;if(rg.length){const a=T(rg[0]);g.fillStyle='#c62828';g.beginPath();g.arc(a[0],a[1],6,0,7);g.fill();if(rg.length>1){const b=T(rg[1]);g.strokeStyle='#c62828';g.lineWidth=4;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.beginPath();g.arc(b[0],b[1],6,0,7);g.fill();
+    g.font='bold 12px Arial';g.fillStyle='#c62828';g.textAlign='center';g.fillText('faîtage',(a[0]+b[0])/2,(a[1]+b[1])/2-12);}}
+  g.fillStyle='#5b6b63';g.font='11px Arial';g.textAlign='left';g.textBaseline='top';g.fillText(st.irr.mode==='poly'?'Mode : contour — touche les coins':'Mode : faîtage — touche 2 points',6,5);}
+function edTap(e){if(!edGeo)return;const r=e.target.getBoundingClientRect(),c=edGeo.c;const x=Math.max(0,Math.min(GX,Math.round((e.clientX-r.left)/c))),y=Math.max(0,Math.min(GY,Math.round((e.clientY-r.top)/c)));const S=st.irr.pts;
+  if(st.irr.mode==='poly'){if(S.length>=3&&x===S[0][0]&&y===S[0][1]){st.irr.mode='ridge';st.irr.ridge=[];}else if(!S.some(p=>p[0]===x&&p[1]===y))S.push([x,y]);}
+  else{const rg=st.irr.ridge;if(rg.length>=2)rg.length=0;rg.push([x,y]);}renderForm();rebuild(st.irr.mode==='ridge'&&st.irr.ridge.length===2);}
+
+// ================================================================ 3D
+let renderer,scene,camera,controls,grp,LS=0.5,ok3d=false;
+function init3d(){const v=$('#view');
+  if(!window.THREE||!THREE.OrbitControls){$('#vmsg').style.display='flex';$('#vmsg').textContent='La 3D n’a pas pu se charger. Vérifie la connexion internet puis recharge la page.';return;}
+  try{renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});}catch(e){$('#vmsg').style.display='flex';$('#vmsg').textContent='Cet appareil ne sait pas afficher la 3D.';return;}
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setClearColor(0xeef2f4,1);v.insertBefore(renderer.domElement,v.firstChild);
+  scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(40,1,0.1,2000);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x8a9a90,0.85));const d=new THREE.DirectionalLight(0xffffff,0.55);d.position.set(-40,80,-60);scene.add(d);
+  controls=new THREE.OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=0.12;controls.maxPolarAngle=Math.PI*0.495;controls.screenSpacePanning=true;
+  new ResizeObserver(resize).observe(v);resize();ok3d=true;(function loop(){requestAnimationFrame(loop);controls.update();renderer.render(scene,camera);})();}
+function resize(){if(!renderer)return;const v=$('#view'),w=v.clientWidth,h=v.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);renderer.domElement.style.width=w+'px';renderer.domElement.style.height=h+'px';camera.aspect=w/h;camera.updateProjectionMatrix();}
+function disposeGrp(){if(!grp)return;scene.remove(grp);grp.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){const m=o.material;if(m.map)m.map.dispose();m.dispose();}});grp=null;}
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+function mats(){const tr=$('#oTransp').checked;return {
+  roof:new THREE.MeshLambertMaterial({color:0x8fb0c8,transparent:true,opacity:tr?0.32:0.92,side:THREE.DoubleSide,depthWrite:!tr}),
+  wall:new THREE.MeshLambertMaterial({color:0xe6dfd2,transparent:true,opacity:tr?0.45:0.95,side:THREE.DoubleSide,depthWrite:!tr}),
+  pan:new THREE.MeshLambertMaterial({color:0xe8862a}),fr:new THREE.MeshLambertMaterial({color:0x2c4a8a}),
+  cap:new THREE.MeshLambertMaterial({color:0x56626a,side:THREE.DoubleSide}),edge:new THREE.LineBasicMaterial({color:0x33413a})};}
+function tris(pts,idx,mat){const g=new THREE.BufferGeometry();const a=[];idx.forEach(i=>{const p=pts[i];a.push(p.x,p.y,p.z);});g.setAttribute('position',new THREE.Float32BufferAttribute(a,3));g.computeVertexNormals();const m=new THREE.Mesh(g,mat);grp.add(m);return m;}
+function poly3(pts,mat){const n=new THREE.Vector3();for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];n.x+=(a.y-b.y)*(a.z+b.z);n.y+=(a.z-b.z)*(a.x+b.x);n.z+=(a.x-b.x)*(a.y+b.y);}
+  const ax=Math.abs(n.x),ay=Math.abs(n.y),az=Math.abs(n.z);const pr=ay>=ax&&ay>=az?p=>new THREE.Vector2(p.x,p.z):ax>=az?p=>new THREE.Vector2(p.y,p.z):p=>new THREE.Vector2(p.x,p.y);
+  const f=THREE.ShapeUtils.triangulateShape(pts.map(pr),[]);const idx=[];f.forEach(t=>idx.push(t[0],t[1],t[2]));return tris(pts,idx,mat);}
+function lines(arr,mat){const g=new THREE.BufferGeometry();const a=[];arr.forEach(p=>a.push(p.x,p.y,p.z));g.setAttribute('position',new THREE.Float32BufferAttribute(a,3));const l=new THREE.LineSegments(g,mat);grp.add(l);return l;}
+function loop3(pts,mat){const a=[];pts.forEach((p,i)=>a.push(p,pts[(i+1)%pts.length]));return lines(a,mat);}
+function beam(p1,p2,w,h,mat){const d=p2.clone().sub(p1),L=d.length();if(L<1e-4)return;const m=new THREE.Mesh(new THREE.BoxGeometry(L,h,w),mat);m.position.copy(p1).add(p2).multiplyScalar(0.5);
+  const dir=d.normalize();m.quaternion.setFromUnitVectors(V(1,0,0),dir);if(Math.abs(dir.y)<0.99){const side=new THREE.Vector3().crossVectors(dir,V(0,1,0)).normalize();const yy=new THREE.Vector3().crossVectors(side,dir).normalize();m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(dir,yy,side));}grp.add(m);}
+function cyl(p1,p2,r,mat){const d=p2.clone().sub(p1),L=d.length();if(L<1e-4)return;const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,L,18),mat);m.position.copy(p1).add(p2).multiplyScalar(0.5);m.quaternion.setFromUnitVectors(V(0,1,0),d.normalize());grp.add(m);}
+function rr(k,x,y,w,h,r){k.beginPath();k.moveTo(x+r,y);k.arcTo(x+w,y,x+w,y+h,r);k.arcTo(x+w,y+h,x,y+h,r);k.arcTo(x,y+h,x,y,r);k.arcTo(x,y,x+w,y,r);k.closePath();}
+function label(txt,p,col,big,force){if(!force&&!$('#oCotes').checked)return;const c=document.createElement('canvas'),k=c.getContext('2d');const fs=44;k.font='bold '+fs+'px Arial';const w=Math.ceil(k.measureText(txt).width)+26,h=fs+18;c.width=w;c.height=h;
+  k.font='bold '+fs+'px Arial';k.fillStyle='rgba(255,255,255,.93)';rr(k,2,2,w-4,h-4,12);k.fill();k.strokeStyle=col||'#1d6b4f';k.lineWidth=4;k.stroke();k.fillStyle=col||'#1d6b4f';k.textAlign='center';k.textBaseline='middle';k.fillText(txt,w/2,h/2+2);
+  const tex=new THREE.CanvasTexture(c);tex.minFilter=THREE.LinearFilter;const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));s.renderOrder=10;const sc=LS*(big||1);s.scale.set(sc*w/h,sc,1);s.position.copy(p);grp.add(s);}
+function dim(p1,p2,txt,col){if(!$('#oCotes').checked)return;const m=new THREE.LineBasicMaterial({color:col||0x1d6b4f});const d=p2.clone().sub(p1);if(d.length()<1e-4)return;
+  const t=LS*0.3;let perp=new THREE.Vector3().crossVectors(d,V(0,1,0));if(perp.length()<1e-6)perp=V(1,0,0);perp.normalize().multiplyScalar(t);
+  lines([p1,p2,p1.clone().add(perp),p1.clone().sub(perp),p2.clone().add(perp),p2.clone().sub(perp)],m);label(txt,p1.clone().add(p2).multiplyScalar(0.5),col);}
+function dashed(a,b,col){const g=new THREE.BufferGeometry().setFromPoints([a,b]);const l=new THREE.Line(g,new THREE.LineDashedMaterial({color:col,dashSize:0.35,gapSize:0.2,linewidth:2}));l.computeLineDistances();grp.add(l);}
+
+function rebuild(fit){model=computeModel();updateInfo();drawMini();if(!ok3d)return;disposeGrp();grp=new THREE.Group();scene.add(grp);const M=model;
+  if(M.ok){const mm=mats();const size=Math.max(M.L||10,...M.vs.map(v=>v.run*2),M.yr||M.h2||5);LS=Math.max(0.3,Math.min(1.5,size*0.028));build(M,mm);
+    const box=new THREE.Box3().setFromObject(grp),sz=box.getSize(V(0,0,0)),ce=box.getCenter(V(0,0,0));
+    const gs=Math.ceil(Math.max(sz.x,sz.z)*1.5/5)*5||20;const grid=new THREE.GridHelper(gs,Math.max(4,Math.round(gs)),0xb8c4bd,0xd6ddd9);grid.position.set(ce.x,0,ce.z);grp.add(grid);
+    if(fit||!rebuild.done){fitView(box);rebuild.done=true;}}
+  const w=$('#vwarn');w.style.display=M.warns.length?'block':'none';w.textContent=M.warns.length?'⚠️ '+M.warns[0]+(M.warns.length>1?` (+${M.warns.length-1})`:''):'';}
+function fitView(box){box=box||new THREE.Box3().setFromObject(grp);const sz=box.getSize(V(0,0,0)),ce=box.getCenter(V(0,0,0));const r=Math.max(sz.x,sz.y,sz.z)*0.5+0.5;
+  const dist=r/Math.sin(camera.fov*Math.PI/360)*Math.max(1,1.15/Math.max(camera.aspect,0.6));const dir=V(-0.85,0.7,-1.1).normalize();
+  controls.target.copy(ce);camera.position.copy(ce).add(dir.multiplyScalar(dist*0.85));camera.near=Math.max(0.05,dist/200);camera.far=dist*20;camera.updateProjectionMatrix();controls.update();}
+
+function build(M,mm){const off=LS*1.5,ph=0.2,pw=0.12,B=(p,y)=>V(p[0],y,p[1]);
+  // ---- toits, murs, arêtes
+  M.vs.forEach(v=>{const roof3=v.roof.map(p=>B(p,v.y(v.dist(p))));poly3(roof3,mm.roof);loop3(roof3,mm.edge);
+    v.poly.forEach((p,i)=>{const q=v.poly[(i+1)%v.poly.length];if(Math.hypot(q[0]-p[0],q[1]-p[1])<1e-4)return;if(v.ridge&&Math.abs(v.dist(p))<0.01&&Math.abs(v.dist(q))<0.01)return;
+      const yp=v.y(v.dist(p)),yq=v.y(v.dist(q));tris([B(p,0),B(q,0),B(q,yq),B(p,yp)],[0,1,2,0,2,3],mm.wall);lines([B(p,0),B(p,yp),B(p,yp),B(q,yq)],mm.edge);});});
+  loop3(M.P.map(p=>B(p,0)),mm.edge);
+  // ---- pannes (+ cassure)
+  M.vs.forEach(v=>{const cass=Number(st.vers[M.type][v.key].cass)||0;v.n.c.forEach((s,i)=>{const ds=v.sd(s);if(ds<-1e-6)return;const yv=v.y(ds)-ph/2-0.03;
+    segs(v.roof,v.dist,v.along,Math.max(ds,1e-3)).forEach(([a0,a1],si)=>{const p=v.pt(ds,a0),q=v.pt(ds,a1);beam(B(p,yv),B(q,yv),pw,ph,mm.pan);
+      if(si===0)label('P'+(i+1),B(v.pt(ds,a1+off*0.5),yv+ph),'#b55d0c',0.8);
+      if(cass===i+1){dashed(B(p,v.y(ds)+0.06),B(q,v.y(ds)+0.06),0xc62828);label('cassure',B(v.pt(ds,(a0+a1)/2),v.y(ds)+LS*0.7),'#c62828',0.9,true);}});});});
+  // ---- faîtage
+  const v0=M.vs[0],rid=v0.ridge?segs(M.P,v0.dist,v0.along,0):segs(M.P,v0.dist,v0.along,0.001);
+  rid.forEach(([a0,a1])=>{const top0=B(v0.pt(0,a0),v0.hTop),top1=B(v0.pt(0,a1),v0.hTop);
+    M.vs.forEach(v=>{const s0=v.n.tD>0?Math.min(v.n.tD,v.n.R):v.n.R*0.96,ds=Math.max(0.02,v.sd(s0));const lift=st.fait==='vent'?0.12:0.05;
+      const p0=B(v.pt(ds,a0),v.y(ds)+lift),p1=B(v.pt(ds,a1),v.y(ds)+lift),q0=top0.clone().setY(v.hTop+lift),q1=top1.clone().setY(v.hTop+lift);tris([p0,p1,q1,q0],[0,1,2,0,2,3],mm.cap);
+      if(!v.ridge){const f0=q0.clone().setY(v.hTop-0.3),f1=q1.clone().setY(v.hTop-0.3);tris([q0,q1,f1,f0],[0,1,2,0,2,3],mm.cap);}});
+    if(st.fait==='boudin'){const r=Math.max(0.12,Math.min(0.3,LS*0.25));cyl(top0.clone().setY(v0.hTop+r*0.5),top1.clone().setY(v0.hTop+r*0.5),r,mm.cap);}
+    else if(st.fait==='vent'){beam(top0.clone().setY(v0.hTop+0.34),top1.clone().setY(v0.hTop+0.34),0.5,0.07,mm.cap);}
+    const mid=top0.clone().multiplyScalar(0.72).add(top1.clone().multiplyScalar(0.28));label(FAIT[st.fait],mid.setY(v0.hTop+LS*1.3),'#3d474e',1,true);});
+  // ---- portiques
+  const Ts=[0].concat(M.T);M.vs.forEach(v=>Ts.forEach(Tv=>{let a=M.emin+Tv;if(a>M.emax+1e-6)return;a=Math.max(M.emin+1e-3,Math.min(M.emax-1e-3,a));
+    segs(v.poly,v.along,v.dist,a).forEach(([d0,d1])=>{[[d0,d1],[d1,d0]].forEach(([dd])=>{if(v.ridge&&dd<0.01)return;const p=v.pt(dd,a);beam(B(p,0),B(p,v.y(dd)-0.28),0.18,0.18,mm.fr);});
+      const p=v.pt(d0,a),q=v.pt(d1,a);beam(B(p,v.y(d0)-0.28),B(q,v.y(d1)-0.28),0.16,0.3,mm.fr);});}));
+  // ---- noms des versants
+  M.vs.forEach(v=>{let al=0,n=0;v.poly.forEach(p=>{al+=v.along(p);n++;});al/=n;const ds=v.run*0.5;label(v.name,B(v.pt(ds,al),v.y(ds)+LS*0.9),'#1d6b4f',1.1,true);});
+  // ---- cotes le long de la pente (au pignon de départ)
+  M.vs.forEach(v=>{let am=Infinity,ax=-Infinity;v.roof.forEach(p=>{am=Math.min(am,v.along(p));ax=Math.max(ax,v.along(p));});const n=v.n,inp=st.vers[M.type][v.key];
+    const P3=(s,lev,lift)=>{const ds=v.sd(Math.min(s,n.R+0.5)),p=v.pt(ds,lev>0?am-off*lev:ax-off*lev);return B(p,v.y(ds)+lift);};// cotes de détail au pignon de départ, cotes totales à l'autre pignon
+    let prev=0;n.c.forEach((s,i)=>{dim(P3(prev,1,0.12),P3(s,1,0.12),f2(num(inp.pans[i])),'#b55d0c');prev=s;});
+    if(isFinite(n.last)&&n.last>0)dim(P3(prev,1,0.12),P3(prev+n.last,1,0.12),f2(n.last),'#7a3d06');
+    if(n.deb>0)dim(P3(0,1.9,0.12),P3(n.deb,1.9,0.12),'débord '+f2(n.deb),'#6a1b9a');
+    if(n.tD>0)dim(P3(0,-2,0.12),P3(n.tD,-2,0.12),'début faîtage '+f2(n.tD),'#1d2a24');
+    if(n.tH>0)dim(P3(0,-3,0.12),P3(n.tH,-3,0.12),'haut faîtage '+f2(n.tH),'#1d2a24');
+    const pe=v.pt(v.run,am-off*0.4);dim(B(pe,0),B(pe,v.hEave),'h '+f2(v.hEave),'#2c4a8a');});
+  // ---- hauteur du faîtage, largeurs, longueurs, travées
+  const am0=M.emin;if(v0.ridge){const p=v0.pt(0,am0-off*2.9);dim(B(p,0),B(p,v0.hTop),'faîtage '+f2(v0.hTop),'#2c4a8a');}
+  else{const p=v0.pt(0,am0-off*0.4);dim(B(p,0),B(p,v0.hTop),'h '+f2(v0.hTop),'#2c4a8a');}
+  if(M.type==='mono'){dim(B(v0.pt(0,am0-off*2.9),0.05),B(v0.pt(v0.run,am0-off*2.9),0.05),'Largeur '+f2(M.Wd),'#1d2a24');}
+  if(M.type==='bi'){const a=am0-off*2.9;dim(B([a,0],0.05),B([a,M.zr],0.05),f2(M.zr),'#2c4a8a');dim(B([a,M.zr],0.05),B([a,M.Wd],0.05),f2(M.Wd-M.zr),'#2c4a8a');dim(B([a-off,0],0.05),B([a-off,M.Wd],0.05),'Largeur '+f2(M.Wd),'#1d2a24');}
+  if(M.type==='irr'){M.P.forEach((p,i)=>{const q=M.P[(i+1)%M.P.length],mx=(p[0]+q[0])/2,mz=(p[1]+q[1])/2,L=Math.hypot(q[0]-p[0],q[1]-p[1])||1;let nx=(q[1]-p[1])/L,nz=-(q[0]-p[0])/L;if(inPoly(mx+nx*0.05,mz+nz*0.05,M.P)){nx=-nx;nz=-nz;}label('C'+(i+1)+' '+f2(L),V(mx+nx*off*0.8,0.1,mz+nz*off*0.8),'#1d2a24',0.85);});}
+  const dE=v0.run+v0.dh+off;let t0=0;M.T.forEach(Tv=>{dim(B(v0.pt(dE,M.emin+t0),0.05),B(v0.pt(dE,M.emin+Tv),0.05),f2(Tv-t0));t0=Tv;});
+  if(M.type!=='irr')dim(B(v0.pt(dE+off*1.3,M.emin),0.05),B(v0.pt(dE+off*1.3,M.emin+M.L),0.05),'Longueur '+f2(M.L),'#1d2a24');
+  // ---- rose des vents (toujours affichée)
+  let x0=Infinity,z0=Infinity,x1=-Infinity,z1=-Infinity;M.P.forEach(p=>{x0=Math.min(x0,p[0]);z0=Math.min(z0,p[1]);x1=Math.max(x1,p[0]);z1=Math.max(z1,p[1]);});
+  const Rr=Math.max(1.2,Math.max(x1-x0,z1-z0)*0.09),cx=x1+Rr*2.2+off*2,cz=z0-Rr*1.2,N=northVec(),E=[-N[1],N[0]],y0=0.03;
+  const ring=[];for(let i=0;i<64;i++){const a=i/64*Math.PI*2;ring.push(V(cx+Math.cos(a)*Rr,y0,cz+Math.sin(a)*Rr));}loop3(ring,new THREE.LineBasicMaterial({color:0x5b6b63}));
+  const sp=[];for(let k=0;k<8;k++){const a=Math.atan2(N[1],N[0])+k*Math.PI/4,l=k%2?0.55:0.85;sp.push(V(cx,y0,cz),V(cx+Math.cos(a)*Rr*l,y0,cz+Math.sin(a)*Rr*l));}lines(sp,new THREE.LineBasicMaterial({color:0x8a9a90}));
+  const tip=(d,col,l)=>{const w=Rr*0.22,pd=[-d[1],d[0]];tris([V(cx+d[0]*Rr*l,y0+0.01,cz+d[1]*Rr*l),V(cx+pd[0]*w,y0+0.01,cz+pd[1]*w),V(cx-pd[0]*w,y0+0.01,cz-pd[1]*w)],[0,1,2],new THREE.MeshBasicMaterial({color:col,side:THREE.DoubleSide}));};
+  tip(N,0xc62828,1.05);tip([-N[0],-N[1]],0x33413a,0.8);
+  [['N',N,'#c62828',1.2],['E',E,'#33413a',0.9],['S',[-N[0],-N[1]],'#33413a',0.9],['O',[-E[0],-E[1]],'#33413a',0.9]].forEach(([t,d,c,b])=>label(t,V(cx+d[0]*Rr*1.35,0.25,cz+d[1]*Rr*1.35),c,b,true));}
+
+// ================================================================ récapitulatif (écran + PDF)
+function recap(){const M=model||computeModel(),t=st.type,R={dims:[],vers:[],trav:[]};const deg=s=>Math.atan(s)*180/Math.PI;
+  R.dims.push(['Type',TYPES[t]],['Faîtage',FAIT[st.fait].replace('Faîtage ','')]);
+  if(t==='mono'){R.dims.push(['Largeur (mur à mur)',f2(num(st.mono.W))+' m'],['Hauteur mur bas',f2(num(st.mono.h1))+' m']);if(M.ok)R.dims.push(['Hauteur mur haut (calculée)',f2(M.h2)+' m']);}
+  else if(t==='bi'){R.dims.push(['Largeur (mur à mur)',f2(num(st.bi.W))+' m']);if(M.ok){R.dims.push(['Mur '+M.vs[0].name.replace('Versant ','côté '),f2(M.hA)+' m'],['Mur '+M.vs[1].name.replace('Versant ','côté '),f2(M.hB)+' m'],['Faîtage : hauteur (calculée)',f2(M.yr)+' m'],['Faîtage à … du mur '+M.vs[0].name.replace('Versant ',''),f2(M.zr)+' m'],['Faîtage à … du mur '+M.vs[1].name.replace('Versant ',''),f2(M.Wd-M.zr)+' m']);}}
+  else{const Rl=irrReal();Rl.P.forEach((p,i)=>{const q=Rl.P[(i+1)%Rl.P.length];R.dims.push(['Côté C'+(i+1)+(i===Rl.P.length-1?' (fermeture)':''),f2(Math.hypot(q[0]-p[0],q[1]-p[1]))+' m']);});R.dims.push(['Hauteur des murs',f2(num(st.irr.h))+' m']);if(M.ok)R.dims.push(['Faîtage : hauteur (calculée)',f2(M.yr)+' m'],['Longueur le long du faîtage',f2(M.L)+' m']);}
+  if(M.ok)M.vs.forEach(v=>R.dims.push(['Pente '+v.name.replace('Versant ',''),f1(deg(v.slope))+'° ('+f1(v.slope*100)+' %)']));
+  R.dims.push(['Longueur (somme des travées)',f2(M.Ltr)+' m']);
+  KEYS[t].forEach((k,i)=>{const v=st.vers[t][k],n=vNums(v),nm=M.vs[i]?M.vs[i].name:'Versant '+(i+1);const rows=[[nm,'']];
+    rows.push(['Débord (bout de tôle → mur)',f2(n.deb)+' m']);v.pans.forEach((x,j)=>rows.push([panLab(j),f2(num(x))+' m (à '+f2(n.c[j])+' m du bas)']));
+    rows.push(['Dernière panne → haut du faîtage',f2(n.last)+' m'],['Bas → début du faîtage',f2(n.tD)+' m'],['Bas → haut du faîtage',f2(n.tH)+' m']);if(v.cass)rows.push(['Cassure de pente','au niveau de P'+v.cass]);R.vers.push(rows);});
+  R.trav.push([st.trav[t].length+' travée'+(st.trav[t].length>1?'s':''),'']);st.trav[t].forEach((v,i)=>R.trav.push(['Travée '+(i+1),f2(num(v))+' m']));return R;}
+function updateInfo(){const M=model||computeModel();const w=$('#warns');if(w)w.innerHTML=M.warns.map(x=>`<div class="warn">⚠️ ${H(x)}</div>`).join('');
+  KEYS[st.type].forEach(k=>{const el=$('#sum_'+k);if(!el)return;const n=vNums(st.vers[st.type][k]);el.textContent='Pannes + dernière panne = '+f2(n.sumR)+' m'+(n.tH>0?(Math.abs(n.sumR-n.tH)<=0.02?' ✓ (égal à bas → haut du faîtage)':' ≠ '+f2(n.tH)+' m'):'');});
+  const i=$('#info');if(!i)return;const R=recap();i.innerHTML='<table>'+R.dims.map(([a,b])=>`<tr><td>${H(a)}</td><td>${H(b)}</td></tr>`).join('')+'</table>';}
+
+// ================================================================ image et PDF
+function snapshot(W,Hh,type){const cv=renderer.domElement,ow=cv.width,oh=cv.height,pr=renderer.getPixelRatio(),asp=camera.aspect;
+  renderer.setPixelRatio(1);renderer.setSize(W,Hh,false);camera.aspect=W/Hh;camera.updateProjectionMatrix();renderer.render(scene,camera);const url=cv.toDataURL(type||'image/png',0.92);
+  renderer.setPixelRatio(pr);renderer.setSize(ow/pr,oh/pr,false);camera.aspect=asp;camera.updateProjectionMatrix();renderer.render(scene,camera);return url;}
+function stamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
+function dl(url,name){const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),500);}
+function saveImg(){if(!ok3d||!model||!model.ok){alert('Complète d’abord les dimensions.');return;}const v=$('#view'),r=Math.min(2,Math.max(1,1600/(v.clientWidth||800)));dl(snapshot(Math.round(v.clientWidth*r),Math.round(v.clientHeight*r)),'batiment-3d-'+stamp()+'.png');}
+const pdfTxt=s=>String(s).replace(/→/g,'>').replace(/[—–]/g,'-').replace(/[’]/g,"'").replace(/…/g,'...').replace(/[✓≠]/g,'');
+function savePdf(){if(!ok3d||!model||!model.ok){alert('Complète d’abord les dimensions.');return;}if(!window.jspdf){alert('Le PDF n’a pas pu se charger. Vérifie la connexion internet.');return;}
+  const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});const R=recap();
+  const img=snapshot(1800,1100,'image/jpeg');doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(15,61,46);doc.text('Bâtiment 3D',10,13);
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(90,100,95);doc.text(new Date().toLocaleDateString('fr-FR'),287,13,{align:'right'});
+  doc.addImage(img,'JPEG',10,18,180,110);doc.setDrawColor(200,210,204);doc.rect(10,18,180,110);
+  const cols=[{x:197,y0:22,y1:128,w:90},{x:10,y0:138,y1:202,w:88},{x:104,y0:138,y1:202,w:88},{x:198,y0:138,y1:202,w:88}];
+  let ci=0,y=cols[0].y0;const nextCol=()=>{ci++;if(ci>=cols.length){doc.addPage();cols.length=0;[10,80,150,220].forEach(x=>cols.push({x,y0:15,y1:202,w:66}));ci=0;}y=cols[ci].y0;};
+  const head=t=>{if(y+16>cols[ci].y1)nextCol();doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(15,61,46);doc.text(pdfTxt(t),cols[ci].x,y);y+=5.5;};
+  const line=(a,b)=>{if(y+4.5>cols[ci].y1)nextCol();const c=cols[ci];doc.setFontSize(8.4);doc.setFont('helvetica','normal');doc.setTextColor(30,40,36);const left=doc.splitTextToSize(pdfTxt(a),b?c.w*0.52:c.w);doc.text(left[0],c.x,y);if(b){doc.setFont('helvetica','bold');doc.text(pdfTxt(b),c.x+c.w,y,{align:'right'});}y+=4.3;};
+  head('Bâtiment');R.dims.forEach(([a,b])=>line(a,b));
+  R.vers.forEach((rows,i)=>{if(i===0&&ci===0)nextCol();else y+=3;head(rows[0][0]+' (cotes le long de la pente)');rows.slice(1).forEach(([a,b])=>line(a,b));});
+  y+=3;head('Travées');R.trav.slice(1).forEach(([a,b])=>line(a,b));
+  if(model.warns.length){y+=3;head('À vérifier');model.warns.forEach(w=>doc.splitTextToSize(pdfTxt(w),cols[ci].w).forEach(l=>line(l,'')));}
+  doc.save('batiment-3d-'+stamp()+'.pdf');}
+
+// ================================================================ événements
+let tm=0;const later=()=>{clearTimeout(tm);tm=setTimeout(()=>rebuild(false),180);};
+document.addEventListener('input',e=>{const el=e.target;
+  if(el.dataset.k){setK(el.dataset.k,el.value);if(el.classList.contains('num'))el.classList.toggle('bad',!isFinite(num(el.value)));later();}
+  else if(el.dataset.l){getK(el.dataset.l)[+el.dataset.i]=el.value;el.classList.toggle('bad',!isFinite(num(el.value)));later();}
+  else if(el.dataset.len!=null){st.irr.lens[+el.dataset.len]=el.value;el.classList.toggle('bad',!(el.value===''||num(el.value)>0));drawEd();later();}});
+document.addEventListener('change',e=>{const el=e.target;
+  if(el.dataset.cnt){let n=Math.round(num(el.value));const k=el.dataset.cnt,a=getK(k),min=k.startsWith('trav')?1:0;if(!isFinite(n))n=a.length;n=Math.max(min,Math.min(60,n));const last=a.length?a[a.length-1]:'1,50';while(a.length<n)a.push(last);a.length=n;
+    const vk=k.replace(/\.pans$/,'');if(vk!==k){const v=getK(vk);if(Number(v.cass)>n)v.cass='';}renderForm();rebuild(false);}
+  else if(el.dataset.len!=null||el.dataset.k==='irr.h'){renderForm();rebuild(true);}
+  else if(el.id==='oCotes'||el.id==='oTransp')rebuild(false);});
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b){if(e.target.id==='ed')edTap(e);return;}
+  if(b.dataset.t){st.type=b.dataset.t;renderForm();rebuild(true);}
+  else if(b.dataset.n!=null){st.north=+b.dataset.n;renderForm();rebuild(false);}
+  else if(b.dataset.f){st.fait=b.dataset.f;renderForm();rebuild(false);}
+  else if(b.dataset.md){st.irr.mode=b.dataset.md;renderForm();}
+  else if(b.id==='edUndo'){if(st.irr.mode==='ridge'&&st.irr.ridge.length)st.irr.ridge.pop();else{st.irr.mode='poly';st.irr.pts.pop();st.irr.lens.length=Math.max(0,st.irr.pts.length-1);}renderForm();rebuild(false);}
+  else if(b.id==='edNew'){st.irr.pts=[];st.irr.lens=[];st.irr.ridge=[];st.irr.mode='poly';renderForm();rebuild(false);}
+  else if(b.dataset.all){const v=document.querySelector(`[data-allv="${b.dataset.all}"]`).value;if(!isFinite(num(v)))return;const a=getK(b.dataset.all);for(let i=b.dataset.all.endsWith('.pans')?1:0;i<a.length;i++)a[i]=v;renderForm();rebuild(false);}
+  else if(b.id==='bFit'){if(ok3d&&grp)fitView();}
+  else if(b.id==='bImg')saveImg();else if(b.id==='bPdf')savePdf();});
+window.addEventListener('resize',()=>{drawMini();if(st.type==='irr')drawEd();});
+
+renderForm();init3d();rebuild(true);
+</script>
+</body>
+</html>
