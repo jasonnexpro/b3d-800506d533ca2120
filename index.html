@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=1280">
 <meta name="robots" content="noindex,nofollow,noarchive">
 <title>Bâtiment 3D</title>
-<!-- Bâtiment 3D v3 — 05/11/2026 — version PC : étapes, Plan / 3D, dessin à la souris, auvent, bardage, portes, local technique et câble. Rien n'est enregistré. -->
+<!-- Bâtiment 3D v4 — 08/11/2026 — Dimensions (largeur, longueur, hauteurs), toit provisoire, onglet Coupe, Couverture (bac / panneau). Avant : v3 — version PC : étapes, Plan / 3D, dessin à la souris, auvent, bardage, portes, local technique et câble. Rien n'est enregistré. -->
 <style>
 :root{--g:#0f3d2e;--g2:#1d6b4f;--bg:#eef1ee;--card:#fff;--line:#d5ddd7;--txt:#1d2a24;--mut:#5b6b63;--red:#c62828;--warn:#9a5b00;--wbg:#fff4e0;--ok:#1b7a3d}
 *{box-sizing:border-box}
@@ -28,7 +28,10 @@ header h1{font-size:18px;margin:0;flex:1}
 #wbar .sep{flex:1}
 #wbar label{font-size:13px;font-weight:600;display:flex;gap:5px;align-items:center}
 #stage{position:relative;flex:1;min-height:0}
-#v3d,#plan{position:absolute;inset:0;width:100%;height:100%}
+#v3d,#plan,#coupe{position:absolute;inset:0;width:100%;height:100%}
+#coupe{background:#fff;display:block}
+.cvn{font-size:12px;color:var(--g2);width:64px}
+.calc{font-size:13px;color:var(--g2);font-weight:600;margin:4px 0 2px}
 #v3d canvas{display:block;width:100%;height:100%}
 #plan{background:#fbfcfb;cursor:crosshair;display:block}
 #banner{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:var(--g);color:#fff;border-radius:10px;padding:8px 16px;font-size:14px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none;white-space:nowrap;display:none}
@@ -89,16 +92,18 @@ table.vt tr.tot td{background:#f5f8f6}
   <div id="side"></div>
   <div id="work">
     <div id="wbar">
-      <div class="tabs"><button type="button" data-tab="plan">🗺️ Plan</button><button type="button" data-tab="3d">🧊 3D</button></div>
+      <div class="tabs"><button type="button" data-tab="plan">🗺️ Plan</button><button type="button" data-tab="coupe">✂️ Coupe</button><button type="button" data-tab="3d">🧊 3D</button></div>
       <div class="ptools" id="ptools"></div>
       <span class="sep"></span>
       <label id="l1"><input type="checkbox" id="oCotes" checked> Cotes</label>
+      <label id="l3"><input type="checkbox" id="oPente"> Cotes de pente</label>
       <label id="l2"><input type="checkbox" id="oTransp" checked> Toit transparent</label>
       <button class="btn s" id="bFit" type="button">⟲ Recentrer</button>
     </div>
     <div id="stage">
       <div id="v3d"></div>
       <canvas id="plan"></canvas>
+      <canvas id="coupe"></canvas>
       <div id="banner"></div>
       <input id="lenEdit" inputmode="decimal">
       <div id="vmsg"></div>
@@ -131,16 +136,17 @@ const VER=(pans,last,tDeb,tHaut)=>({deb:'0,30',pans,last,tDeb,tHaut,cass:'',auv:
 const LOC=on=>({on,side:0,piece:on?1:0,L:'2,50',P:'2,00',Hh:'2,50',gap:'0,80',ent:'0,60'});
 const st={
   type:'bi',north:0,fait:'vent',tab:'3d',step:1,
-  mono:{W:'10',h1:'5'},
-  bi:{W:'12',hA:'6',hB:'6'},
-  irr:{pts:[[0,0],[16,0],[16,6],[10,6],[10,11],[0,11]],ridge:[[0,3],[16,3]],h:'5',mode:'edit'},
+  mono:{W:'10',L:'30',h1:'5',h2:'7'},
+  bi:{W:'12',L:'30',hA:'6',hB:'6',hf:'8'},
+  irr:{pts:[[0,0],[16,0],[16,6],[10,6],[10,11],[0,11]],ridge:[[0,3],[16,3]],h:'5',hf:'7',mode:'edit'},
   vers:{
     mono:{m:VER(['0,40'].concat(rep('1,65',6)),'0,20','10,25','10,50')},
     bi:{A:VER(['0,40'].concat(rep('1,50',4)),'0,22','6,37','6,62'),B:VER(['0,40'].concat(rep('1,50',4)),'0,22','6,37','6,62')},
     irr:{A:VER(['0,40'].concat(rep('1,60',5)),'0,15','8,30','8,55'),B:VER(['0,40','1,60','1,60'],'0,31','3,66','3,91')}},
   trav:{mono:rep('6',5),bi:rep('6',5),irr:rep('4',4)},
   fac:{mono:{},bi:{},irr:{}},
-  loc:{mono:LOC(false),bi:LOC(true),irr:LOC(false)}
+  loc:{mono:LOC(false),bi:LOC(true),irr:LOC(false)},
+  couv:{type:'bac',bac:{g:'',h:'',i:'',j:'',k:''},pan:{a:'',b:'',c:'',d:'',e:'',f:''}}
 };
 const getK=k=>k.split('.').reduce((o,p)=>o[p],st);
 const setK=(k,v)=>{const p=k.split('.'),l=p.pop();p.reduce((o,q)=>o[q],st)[l]=v;};
@@ -166,43 +172,50 @@ function mkV(key,poly,O,e,d,run,hTop,hEave,n,ridge){const rise=hTop-hEave,Rw=Mat
   return {key,poly,roof,O,e,d,run,hTop,hEave,rise,Rw,cs,slope,dist,along,pt,y,dh,n,ridge,aw:n.aw,wallDist:run-n.aw,sd:s=>run+dh-s*cs,name:'Versant '+oriName(d)};}
 function circles(W,hA,hB,rA,rB){const dz=W,dy=hB-hA,dd=Math.hypot(dz,dy);if(rA+rB<=dd)return {err:'short'};if(Math.abs(rA-rB)>=dd)return {err:'long'};
   const a=(rA*rA-rB*rB+dd*dd)/(2*dd),hh=Math.sqrt(Math.max(0,rA*rA-a*a));return {zr:a*dz/dd-hh*dy/dd,yr:hA+a*dy/dd+hh*dz/dd};}
+const PROV=Math.tan(15*Math.PI/180);
 function computeModel(){const t=st.type,W=[],M={type:t,warns:W,vs:[]};const trv=st.trav[t];M.T=cum(trv);M.Ltr=sum(trv);
   if(trv.some(x=>!(num(x)>0)))W.push('Une largeur de travée est vide ou à zéro.');
   const ns={};KEYS[t].forEach(k=>ns[k]=vNums(st.vers[t][k]));if(t==='irr')KEYS.irr.forEach(k=>ns[k].aw=0);
-  if(t==='mono'){const Wd=num(st.mono.W),h1=num(st.mono.h1),n=ns.m;if(!(Wd>0&&h1>0)){W.push('Remplis la largeur et la hauteur du mur bas.');return M;}
-    const Rt=n.R-n.deb,runT=Wd+n.aw;if(!(Rt>runT)){W.push(`Le toit (${f2(Rt)} m sans le débord) est plus court que la largeur${n.aw?' + l’auvent':''} (${f2(runT)} m) : vérifie « bas → haut du faîtage ».`);return M;}
-    const slope=Math.sqrt(Rt*Rt-runT*runT)/runT,L=M.Ltr>0?M.Ltr:1;M.P=[[0,0],[L,0],[L,Wd],[0,Wd]];Object.assign(M,{Wd,h1,h2:h1+slope*Wd});
+  const prov=msg=>{M.prov=true;W.unshift('Toit PROVISOIRE : '+msg);};
+  const lenOf=o=>{const Ln=num(o.L);if(Ln>0){if(M.Ltr>0&&Math.abs(M.Ltr-Ln)>0.05)W.push(`Les travées font ${f2(M.Ltr)} m au total, mais la longueur notée est ${f2(Ln)} m.`);return Ln;}return M.Ltr>0?M.Ltr:1;};
+  if(t==='mono'){const Wd=num(st.mono.W),h1=num(st.mono.h1),h2i=num(st.mono.h2),n=ns.m;if(!(Wd>0&&h1>0)){W.push('Remplis la largeur et la hauteur du mur bas.');return M;}
+    const runT=Wd+n.aw;let slope;
+    if(h2i>0){if(h2i<=h1){prov('le mur haut doit être plus haut que le mur bas.');slope=PROV;}else slope=(h2i-h1)/Wd;}
+    else{const Rt=n.R-n.deb;if(Rt>runT)slope=Math.sqrt(Rt*Rt-runT*runT)/runT;else{prov(`avec ces cotes, le toit (${f2(Rt)} m sans le débord) est plus court que la largeur${n.aw?' + l’auvent':''} (${f2(runT)} m). Note la hauteur du mur haut, ou corrige « bas → haut du faîtage ».`);slope=PROV;}}
+    const L=lenOf(st.mono);M.P=[[0,0],[L,0],[L,Wd],[0,Wd]];Object.assign(M,{Wd,h1,h2:h1+slope*Wd,h2calc:!(h2i>0)});
     const hp=h1-slope*n.aw;if(n.aw&&hp<1)W.push('Les poteaux de l’auvent seraient très bas ('+f2(hp)+' m) : vérifie la largeur de l’auvent.');
     M.vs.push(mkV('m',[[0,-n.aw],[L,-n.aw],[L,Wd],[0,Wd]],[0,Wd],[1,0],[0,-1],runT,M.h2,hp,n,false));}
-  else if(t==='bi'){const Wd=num(st.bi.W),hA=num(st.bi.hA),hB=num(st.bi.hB);if(!(Wd>0&&hA>0&&hB>0)){W.push('Remplis la largeur et les deux hauteurs de mur.');return M;}
-    const A=ns.A,B=ns.B;if(!(A.R-A.deb>0&&B.R-B.deb>0)){W.push('Remplis « bas → haut du faîtage » pour les deux versants.');return M;}
-    let rA=A.R-A.deb-A.aw,rB=B.R-B.deb-B.aw,c=null;
-    for(let k=0;k<40;k++){c=circles(Wd,hA,hB,rA,rB);if(c.err)break;rA=(A.R-A.deb)*c.zr/(c.zr+A.aw);rB=(B.R-B.deb)*(Wd-c.zr)/(Wd-c.zr+B.aw);}
-    if(c.err==='short'){W.push('Les deux versants sont trop courts pour se rejoindre au faîtage : vérifie les cotes « bas → haut du faîtage »'+(A.aw||B.aw?' et la largeur de l’auvent':'')+'.');return M;}
-    if(c.err){W.push('Un versant est beaucoup trop long par rapport à l’autre : vérifie les cotes « bas → haut du faîtage » (ou coche « auvent » si le toit continue au-delà du mur).');return M;}
-    const {zr,yr}=c;if(!(zr>0.05&&zr<Wd-0.05)){W.push('Avec ces cotes, le faîtage tombe en dehors des murs : vérifie les cotes des versants (ou coche « auvent » si le toit continue au-delà du mur).');return M;}
-    const L=M.Ltr>0?M.Ltr:1;M.P=[[0,0],[L,0],[L,Wd],[0,Wd]];Object.assign(M,{Wd,hA,hB,zr,yr});
+  else if(t==='bi'){const Wd=num(st.bi.W),hA=num(st.bi.hA),hB=num(st.bi.hB),hfi=num(st.bi.hf);if(!(Wd>0&&hA>0&&hB>0)){W.push('Remplis la largeur et les deux hauteurs de mur.');return M;}
+    const A=ns.A,B=ns.B;let zr=NaN,yr=NaN;
+    if(A.R-A.deb>0&&B.R-B.deb>0){let rA=A.R-A.deb-A.aw,rB=B.R-B.deb-B.aw,c=null;for(let k=0;k<40;k++){c=circles(Wd,hA,hB,rA,rB);if(c.err)break;rA=(A.R-A.deb)*c.zr/(c.zr+A.aw);rB=(B.R-B.deb)*(Wd-c.zr)/(Wd-c.zr+B.aw);}
+      if(!c.err&&c.zr>0.05&&c.zr<Wd-0.05){zr=c.zr;yr=c.yr;}}
+    if(hfi>0){if(!isFinite(zr))zr=Wd/2;if(hfi<=Math.max(hA,hB)+0.05){prov('la hauteur au faîtage doit être plus grande que celle des murs.');yr=Math.max(hA,hB)+PROV*Wd/2;zr=Wd/2;}else yr=hfi;}
+    else if(!isFinite(yr)){prov('avec ces cotes, les deux versants ne se rejoignent pas au faîtage. Note la hauteur au faîtage, ou corrige les cotes « bas → haut du faîtage »'+(A.aw||B.aw?' (et la largeur de l’auvent)':'')+'.');zr=Wd/2;yr=Math.max(hA,hB)+PROV*Wd/2;}
+    const L=lenOf(st.bi);M.P=[[0,0],[L,0],[L,Wd],[0,Wd]];Object.assign(M,{Wd,hA,hB,zr,yr,hfcalc:!(hfi>0)});
     const sA=(yr-hA)/zr,sB=(yr-hB)/(Wd-zr);
     M.vs.push(mkV('A',[[0,-A.aw],[L,-A.aw],[L,zr],[0,zr]],[0,zr],[1,0],[0,-1],zr+A.aw,yr,hA-sA*A.aw,A,true));
     M.vs.push(mkV('B',[[0,zr],[L,zr],[L,Wd+B.aw],[0,Wd+B.aw]],[0,zr],[1,0],[0,1],Wd-zr+B.aw,yr,hB-sB*B.aw,B,true));
     M.vs.forEach(v=>{if(v.aw&&v.hEave<1)W.push(v.name+' : les poteaux de l’auvent seraient très bas ('+f2(v.hEave)+' m).');});}
   else{const P=st.irr.pts;if(P.length<3||st.irr.mode==='draw'){W.push('Dessine le contour du bâtiment sur le plan (au moins 3 coins), puis ferme-le.');return M;}
-    const h=num(st.irr.h);if(!(h>0)){W.push('Remplis la hauteur des murs.');return M;}
+    const h=num(st.irr.h),hfi=num(st.irr.hf);if(!(h>0)){W.push('Remplis la hauteur des murs.');return M;}
     if(st.irr.ridge.length<2){W.push('Place le faîtage : clique 2 points sur le plan.');return M;}
     const R1=st.irr.ridge[0],R2=st.irr.ridge[1],el=Math.hypot(R2[0]-R1[0],R2[1]-R1[1]);if(el<0.1){W.push('Les 2 points du faîtage sont trop proches.');return M;}
     const e=[(R2[0]-R1[0])/el,(R2[1]-R1[1])/el],dA=[-e[1],e[0]];M.P=P;
     const halves=[1,-1].map(sg=>{const d=[dA[0]*sg,dA[1]*sg];const f=p=>(p[0]-R1[0])*d[0]+(p[1]-R1[1])*d[1];const poly=clipHalf(P,f);return {d,poly,run:poly.length>=3?Math.max(...poly.map(f)):0};});
     if(halves.some(x=>x.poly.length<3||x.run<0.2)){W.push('Le faîtage doit traverser le bâtiment (un versant de chaque côté).');return M;}
-    const rises=halves.map((x,i)=>{const n=ns[KEYS.irr[i]],Rw=n.R-n.deb;return Rw>x.run?Math.sqrt(Rw*Rw-x.run*x.run):NaN;});
-    halves.forEach((x,i)=>{if(!isFinite(rises[i]))W.push(`Versant ${oriName(x.d)} : le toit est plus court que la distance mur → faîtage (${f2(x.run)} m).`);});
-    if(!rises.every(isFinite))return M;
-    if(Math.abs(rises[0]-rises[1])>0.05)W.push(`Les deux versants donnent des hauteurs de faîtage différentes (${f2(h+rises[0])} et ${f2(h+rises[1])} m) : la moyenne est utilisée.`);
-    const hr=h+(rises[0]+rises[1])/2;Object.assign(M,{h,yr:hr});
+    let hr;const maxRun=Math.max(...halves.map(x=>x.run));
+    if(hfi>0){if(hfi<=h+0.05){prov('la hauteur au faîtage doit être plus grande que celle des murs.');hr=h+PROV*maxRun;}else hr=hfi;}
+    else{const rises=halves.map((x,i)=>{const n=ns[KEYS.irr[i]],Rw=n.R-n.deb;return Rw>x.run?Math.sqrt(Rw*Rw-x.run*x.run):NaN;});
+      if(rises.every(isFinite)){if(Math.abs(rises[0]-rises[1])>0.05)W.push(`Les deux versants donnent des hauteurs de faîtage différentes (${f2(h+rises[0])} et ${f2(h+rises[1])} m) : la moyenne est utilisée. Tu peux noter la hauteur au faîtage.`);hr=h+(rises[0]+rises[1])/2;}
+      else{prov('avec ces cotes, un versant est plus court que la distance mur → faîtage. Note la hauteur au faîtage, ou corrige « bas → haut du faîtage ».');hr=h+PROV*maxRun;}}
+    Object.assign(M,{h,yr:hr,hfcalc:!(hfi>0)});
     halves.forEach((x,i)=>M.vs.push(mkV(KEYS.irr[i],x.poly,R1,e,x.d,x.run,hr,h,ns[KEYS.irr[i]],true)));}
   M.vs.forEach(v=>{const n=v.n,nm=v.name;if(st.vers[t][v.key].pans.some(x=>!(num(x)>=0)))W.push(nm+' : une distance de panne est vide.');
     if(n.tH>0&&isFinite(n.last)&&Math.abs(n.sumR-n.tH)>0.02)W.push(`${nm} : pannes + dernière panne = ${f2(n.sumR)} m, mais « bas → haut du faîtage » = ${f2(n.tH)} m.`);
     if(n.tD>0&&n.tH>0&&n.tD>n.tH)W.push(nm+' : « début du faîtage » est plus loin que « haut du faîtage ».');
-    if(!(n.tD>0))W.push(nm+' : remplis « bas → début du faîtage ».');});
+    if(!(n.tD>0))W.push(nm+' : remplis « bas → début du faîtage ».');
+    const Rexp=n.deb+v.Rw;if(!M.prov&&n.tH>0&&Math.abs(n.tH-Rexp)>0.05)W.push(`${nm} : « bas → haut du faîtage » = ${f2(n.tH)} m, mais avec ces dimensions le toit fait ${f2(Rexp)} m.`);
+    const lp=n.c.length?n.c[n.c.length-1]:0;if(lp>Rexp+0.02)W.push(`${nm} : P${n.c.length} (à ${f2(lp)} m du bas) dépasse le haut du toit (${f2(Rexp)} m).`);});
   const v0=M.vs[0];let emin=Infinity,emax=-Infinity;M.P.forEach(p=>{emin=Math.min(emin,v0.along(p));emax=Math.max(emax,v0.along(p));});Object.assign(M,{emin,emax,L:emax-emin,ok:true});
   if(t==='irr'&&M.Ltr>0&&Math.abs(M.Ltr-M.L)>0.05)W.push(`Les travées font ${f2(M.Ltr)} m au total, mais le bâtiment fait ${f2(M.L)} m le long du faîtage.`);
   M.sides=sidesOf(M);M.loc=locOf(M);return M;}
@@ -222,21 +235,21 @@ function locOf(M){const lc=st.loc[M.type];if(!lc.on)return null;const S=M.sides.
   return {S,pc,c,dir,n:S.n,L,P,Hh,gap,ent,top,desc:top-ent,total:top-ent+gap};}
 
 // ================================================================ barre latérale (étapes)
-function fld(label,k,unit){const v=getK(k);return `<div class="row"><span>${label}</span><input class="num${isFinite(num(v))?'':' bad'}" inputmode="decimal" data-k="${k}" value="${H(v)}"><span class="unit">${unit==null?'m':unit}</span></div>`;}
+function fld(label,k,unit){const v=getK(k),opt=/\.(L|h2|hf)$/.test(k);return `<div class="row"><span>${label}</span><input class="num${isFinite(num(v))||(opt&&String(v).trim()==='')?'':' bad'}"${opt?' placeholder="calculée"':''} inputmode="decimal" data-k="${k}" value="${H(v)}"><span class="unit">${unit==null?'m':unit}</span></div>`;}
 const panLab=i=>i===0?'Bord bas → P1':`P${i} → P${i+1}`;
 let model=null;
-function stepBox(n,title,sm,body){return `<section class="step${st.step===n?' open':''}" data-step="${n}"><h2 data-open="${n}"><span class="n">${n}</span>${title}<span class="sum">${sm||''}</span></h2><div class="body">${body}${n<6?`<button class="btn s next" type="button" data-open="${n+1}">Étape suivante →</button>`:''}</div></section>`;}
+function stepBox(n,title,sm,body){return `<section class="step${st.step===n?' open':''}" data-step="${n}"><h2 data-open="${n}"><span class="n">${n}</span>${title}<span class="sum">${sm||''}</span></h2><div class="body">${body}${n<7?`<button class="btn s next" type="button" data-open="${n+1}">Étape suivante →</button>`:''}</div></section>`;}
 function renderSide(){const sc=$('#side').scrollTop;const t=st.type;model=computeModel();const M=model;let h='';
   h+=stepBox(1,'Type de bâtiment',TYPES[t],`<div class="seg">${Object.keys(TYPES).map(k=>`<button type="button" data-t="${k}" class="${t===k?'on':''}">${TYPES[k]}</button>`).join('')}</div>
     <h3>Type de faîtage</h3><div class="seg">${Object.keys(FAIT).map(k=>`<button type="button" data-f="${k}" class="${st.fait===k?'on':''}">${FAIT[k].replace('Faîtage ','')}</button>`).join('')}</div>`);
   let b=`<p class="hint">🧭 <b>Nord</b> : clique sur la <b>rose des vents</b> en haut à droite du plan (onglet 🗺️ Plan), du côté où se trouve le nord. Actuellement : nord ${['en haut','en haut à droite','à droite','en bas à droite','en bas','en bas à gauche','à gauche','en haut à gauche'][st.north]} du plan.</p>`;
-  if(t==='mono')b+=fld('Largeur (mur à mur)','mono.W')+fld('Hauteur du mur bas','mono.h1')+`<p class="hint">La longueur = la somme des travées. La hauteur du mur haut est calculée.</p>`;
-  else if(t==='bi'){const nA=M.vs[0]?M.vs[0].name.replace('Versant ','côté '):'côté 1',nB=M.vs[1]?M.vs[1].name.replace('Versant ','côté '):'côté 2';b+=fld('Largeur (mur à mur)','bi.W')+fld('Hauteur du mur — '+nA,'bi.hA')+fld('Hauteur du mur — '+nB,'bi.hB')+`<p class="hint">Le faîtage se place tout seul avec les cotes des deux versants (pas forcément au milieu).</p>`;}
+  if(t==='mono')b+=fld('Largeur (mur à mur)','mono.W')+fld('Longueur','mono.L')+fld('Hauteur du mur bas','mono.h1')+fld('Hauteur du mur haut','mono.h2')+`<p class="hint">Case vide = calculée : la longueur avec les travées, la hauteur du mur haut avec les cotes du versant.</p><div class="calc" id="calcH"></div>`;
+  else if(t==='bi'){const nA=M.vs[0]?M.vs[0].name.replace('Versant ','côté '):'côté 1',nB=M.vs[1]?M.vs[1].name.replace('Versant ','côté '):'côté 2';b+=fld('Largeur (mur à mur)','bi.W')+fld('Longueur','bi.L')+fld('Hauteur du mur — '+nA,'bi.hA')+fld('Hauteur du mur — '+nB,'bi.hB')+fld('Hauteur au faîtage','bi.hf')+`<p class="hint">Case vide = calculée : la longueur avec les travées, la hauteur au faîtage avec les cotes des versants. Le faîtage se place avec les cotes des versants (pas forcément au milieu).</p><div class="calc" id="calcH"></div>`;}
   else{const P=st.irr.pts,closed=st.irr.mode!=='draw';b+=`<p class="hint">Le dessin se fait <b>sur le plan</b>, à la souris :<br>• <b>clic</b> = un coin (accroché tous les 0,50 m)<br>• <b>taper une longueur + Entrée</b> = côté exact dans la direction de la souris<br>• <b>double-clic</b> ou clic sur le 1er coin = fermer la forme<br>• puis <b>2 clics</b> pour le faîtage<br>• ensuite : glisser un coin pour le déplacer, clic sur une longueur pour la changer, clic droit = supprimer un coin, Ctrl+Z = annuler.<br>Bouton <b>✏️ Redessiner le contour</b> au-dessus du plan pour recommencer.</p>`;
     if(P.length>=2){b+=`<h3>Longueurs des côtés</h3>`;P.forEach((p,i)=>{if(!closed&&i===P.length-1)return;const q=P[(i+1)%P.length],L=Math.hypot(q[0]-p[0],q[1]-p[1]);const last=closed&&i===P.length-1;
       b+=`<div class="row"><span>Côté C${i+1}${last?' <small>(se ferme tout seul)</small>':''}</span>${last?`<b>${f2(L)}</b>`:`<input class="num" inputmode="decimal" data-side="${i}" value="${f2(L)}">`}<span class="unit">m</span></div>`;});}
-    b+=fld('Hauteur des murs (bas des versants)','irr.h');}
-  h+=stepBox(2,'Forme et nord','nord '+['↑','↗','→','↘','↓','↙','←','↖'][st.north],b);
+    b+=fld('Hauteur des murs (bas des versants)','irr.h')+fld('Hauteur au faîtage','irr.hf')+`<p class="hint">Case vide = hauteur au faîtage calculée avec les cotes des versants.</p><div class="calc" id="calcH"></div>`;}
+  h+=stepBox(2,'Dimensions','nord '+['↑','↗','→','↘','↓','↙','←','↖'][st.north],b);
   b=`<p class="hint">Toutes les cotes se mesurent <b>le long de la pente</b>, en partant du <b>bout de la tôle</b> en bas du toit.</p>`;
   KEYS[t].forEach((k,i)=>{const v=st.vers[t][k],p=`vers.${t}.${k}`,nm=M.vs[i]?M.vs[i].name:(KEYS[t].length>1?'Versant '+(i+1):'Versant'),n=vNums(v);
     b+=`<div class="vbox"><h3>${H(nm)}</h3><table class="vt"><tr><th>Cote</th><th>m</th><th style="text-align:right">depuis le bas</th></tr>
@@ -251,6 +264,9 @@ function renderSide(){const sc=$('#side').scrollTop;const t=st.type;model=comput
       <div class="row"><span>Cassure de pente</span><select data-k="${p}.cass"><option value="">aucune</option>${v.pans.map((x,j)=>`<option value="${j+1}"${String(v.cass)===String(j+1)?' selected':''}>au niveau de P${j+1}</option>`).join('')}</select></div>
       ${t!=='irr'?`<div class="row"><span><label><input type="checkbox" data-kb="${p}.auv"${v.auv?' checked':''}> Auvent (le toit continue au-delà du mur, sur poteaux)</label></span></div>${v.auv?fld('Largeur de l’auvent au sol (mur → poteaux)',p+'.aw'):''}`:''}</div>`;});
   h+=stepBox(3,'Versants',KEYS[t].length+' versant'+(KEYS[t].length>1?'s':''),b);
+  {const ct=st.couv.type;let c=`<div class="seg"><button type="button" data-cv="bac" class="${ct==='bac'?'on':''}">Bac acier</button><button type="button" data-cv="pan" class="${ct==='pan'?'on':''}">Panneau sandwich</button></div><canvas id="prof" style="width:100%;height:180px;margin-top:8px;border:1px solid #e3e9e5;border-radius:10px;display:block"></canvas><p class="hint">Tu peux écrire « 3,5cm », « 2,1m » ou juste « 33,5 ». Les nervures sont dessinées sur le toit en 3D avec l’entraxe (${ct==='bac'?'i':'d'}).</p>`;
+    COUV[ct].forEach(([k,lab])=>{c+=`<div class="row"><span><b>${k}</b> — ${lab}</span><input class="num cvi" data-k="couv.${ct}.${k}" value="${H(st.couv[ct][k])}"><span class="cvn" id="cvn_${k}"></span></div>`;});
+    h+=stepBox(4,'Couverture',ct==='bac'?'bac acier':'panneau sandwich',c);}
   b=`<h3>Travées</h3>`;st.trav[t].forEach((x,i)=>{b+=`<div class="row"><span>Travée ${i+1}</span><input class="num${num(x)>0?'':' bad'}" inputmode="decimal" data-l="trav.${t}" data-i="${i}" value="${H(x)}"><span class="unit">m</span></div>`;});
   b+=`<div class="row"><span>Travées</span><button class="btn s" type="button" data-tadd="1">+ travée</button><button class="btn s r" type="button" data-tdel="1">− travée</button></div>
     <div class="row"><span>Même largeur partout</span><input class="num" inputmode="decimal" data-allv="trav.${t}"><button class="btn s" type="button" data-all="trav.${t}">Appliquer</button></div>`;
@@ -259,16 +275,16 @@ function renderSide(){const sc=$('#side').scrollTop;const t=st.type;model=comput
     S.pieces.forEach((pc,k)=>{const s=pc.s;b+=`<div class="pc"><span>${pc.lab} <small>(${f2(pc.len)})</small></span><select data-fs="${S.i}" data-p="${k}"><option value="b"${s.s==='b'?' selected':''}>Bardé</option><option value="o"${s.s==='o'?' selected':''}>Ouvert</option><option value="p"${s.s==='p'?' selected':''}>Porte</option></select>
       ${s.s==='p'?`<input class="num" inputmode="decimal" data-fl="${S.i}" data-p="${k}" value="${H(s.l)}" title="largeur">×<input class="num" inputmode="decimal" data-fh="${S.i}" data-p="${k}" value="${H(s.h)}" title="hauteur"> m`:''}</div>`;});b+=`</div>`;});
   else b+=`<p class="hint">Complète d’abord la forme et les versants.</p>`;
-  h+=stepBox(4,'Travées et façades',st.trav[t].length+' travées',b);
+  h+=stepBox(5,'Travées et façades',st.trav[t].length+' travées',b);
   const lc=st.loc[t];b=`<div class="row"><span><label><input type="checkbox" data-kb="loc.${t}.on"${lc.on?' checked':''}> Afficher un local technique</label></span></div>`;
   if(lc.on&&M.ok){const S=M.sides.find(s=>s.i===+lc.side)||M.sides[0];b+=`<div class="row"><span>Façade</span><select data-k="loc.${t}.side">${M.sides.map(s=>`<option value="${s.i}"${s.i===S.i?' selected':''}>${H(s.name)}</option>`).join('')}</select></div>
      <div class="row"><span>Position</span><select data-k="loc.${t}.piece">${S.pieces.map((pc,k)=>`<option value="${k}"${+lc.piece===k?' selected':''}>${pc.lab==='Côté entier'?'Milieu du côté':'Milieu de la '+pc.lab.toLowerCase()}</option>`).join('')}</select></div>
      ${fld('Longueur du local (le long du mur)',`loc.${t}.L`)}${fld('Profondeur du local',`loc.${t}.P`)}${fld('Hauteur du local',`loc.${t}.Hh`)}
      ${fld('Écart local ↔ bâtiment',`loc.${t}.gap`)}${fld('Entrée du câble dans le local (hauteur)',`loc.${t}.ent`)}
      <h3>Passage de câble</h3><div id="cable"></div>`;}
-  h+=stepBox(5,'Local technique',lc.on?'oui':'non',b);
-  h+=stepBox(6,'Résultat','',`<div id="info"></div><p class="hint">Les boutons <b>Enregistrer l'image</b> et <b>Exporter le PDF</b> sont en haut à droite. Rien n'est enregistré : pense à exporter avant de fermer.</p>`);
-  $('#side').innerHTML=h;$('#side').scrollTop=sc;updateInfo();}
+  h+=stepBox(6,'Local technique',lc.on?'oui':'non',b);
+  h+=stepBox(7,'Résultat','',`<div id="info"></div><p class="hint">Les boutons <b>Enregistrer l'image</b> et <b>Exporter le PDF</b> sont en haut à droite. Rien n'est enregistré : pense à exporter avant de fermer.</p>`);
+  $('#side').innerHTML=h;$('#side').scrollTop=sc;updateInfo();const pf=$('#prof');if(pf)drawProfile(pf);}
 
 // ================================================================ PLAN (vue de dessus, dessin à la souris)
 const pv={s:20,ox:60,oy:60,fitted:false,mouse:null,buf:'',undo:[]};
@@ -318,6 +334,7 @@ function drawPlan(){if(st.tab!=='plan')return;const {g,w,h}=planCanvas();g.fillS
       if(md==='ridge'&&rg.length===1&&pv.mouse){const a=W2S(rg[0]),b2=W2S(ridgeTarget());g.strokeStyle='#c62828';g.lineWidth=2;g.setLineDash([6,4]);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b2[0],b2[1]);g.stroke();g.setLineDash([]);}}
     if(pv.mouse&&(md==='draw'||md==='ridge')){const t=md==='draw'?drawTarget():ridgeTarget(),q=W2S(t);g.strokeStyle=md==='draw'?'#1d6b4f':'#c62828';g.lineWidth=2;g.beginPath();g.arc(q[0],q[1],9,0,7);g.stroke();
       txtBox(g,'x '+f2(t[0])+'  y '+f2(t[1]),q[0]+62,q[1]+20,'#5b6b63','rgba(255,255,255,.85)',11);}}
+  if(M&&M.ok&&M.prov){g.fillStyle='#c62828';g.font='bold 16px Arial';g.textAlign='center';g.fillText('TOIT PROVISOIRE — vérifie les cotes',w/2,h-18);}
   drawRose(g,w);updBanner();}
 function drawRose(g,w){const cx=w-70,cy=72,R=46;g.fillStyle='rgba(255,255,255,.95)';g.beginPath();g.arc(cx,cy,R+14,0,7);g.fill();g.strokeStyle='#cbd6cf';g.lineWidth=1;g.stroke();
   for(let k=0;k<8;k++){const a=(k*45-90)*Math.PI/180;const on=k===st.north;g.fillStyle=on?'#c62828':'#e7efe9';g.beginPath();g.arc(cx+Math.cos(a)*R,cy+Math.sin(a)*R,on?13:9,0,7);g.fill();}
@@ -413,7 +430,7 @@ function dim(p1,p2,txt,col,force){if(!force&&!$('#oCotes').checked)return;const 
 function dashed(a,b,col){const g=new THREE.BufferGeometry().setFromPoints([a,b]);const l=new THREE.Line(g,new THREE.LineDashedMaterial({color:col,dashSize:0.35,gapSize:0.2}));l.computeLineDistances();grp.add(l);}
 
 let fitNext=true;
-function rebuild(fit){model=computeModel();updateInfo();if(fit)fitNext=true;if(st.tab==='plan')drawPlan();if(!ok3d)return;disposeGrp();grp=new THREE.Group();scene.add(grp);const M=model;
+function rebuild(fit){model=computeModel();updateInfo();if(fit)fitNext=true;if(st.tab==='plan')drawPlan();if(st.tab==='coupe')drawCoupe();if(!ok3d)return;disposeGrp();grp=new THREE.Group();scene.add(grp);const M=model;
   if(M.ok){const mm=mats();const size=Math.max(M.L||10,...M.vs.map(v=>v.run*2),M.yr||M.h2||5);LS=Math.max(0.3,Math.min(1.5,size*0.026));build(M,mm);
     const box=new THREE.Box3().setFromObject(grp),sz=box.getSize(V(0,0,0)),ce=box.getCenter(V(0,0,0));
     const gs=Math.ceil(Math.max(sz.x,sz.z)*1.5/5)*5||20;const grid=new THREE.GridHelper(gs,Math.max(4,Math.round(gs)),0xb8c4bd,0xd6ddd9);grid.position.set(ce.x,0,ce.z);grp.add(grid);
@@ -424,6 +441,8 @@ function fitView(box){box=box||new THREE.Box3().setFromObject(grp);const sz=box.
 
 function build(M,mm){const off=LS*1.5,ph=0.2,pw=0.12,B=(p,y)=>V(p[0],y,p[1]);
   M.vs.forEach(v=>{const roof3=v.roof.map(p=>B(p,v.y(v.dist(p))));poly3(roof3,mm.roof);loop3(roof3,mm.edge);});
+  if(M.prov){const v=M.vs[0];let al=0;v.poly.forEach(p=>al+=v.along(p));al/=v.poly.length;label('TOIT PROVISOIRE',B(v.pt(v.wallDist*0.5,al),v.hTop+LS*2.2),'#c62828',1.6,true);}
+  {const sp=couvSpacing();if(sp>=0.15)M.vs.forEach(v=>{let a0=Infinity,a1=-Infinity;v.roof.forEach(p=>{a0=Math.min(a0,v.along(p));a1=Math.max(a1,v.along(p));});if((a1-a0)/sp>900)return;const arr=[];for(let a=a0+sp/2;a<a1;a+=sp)segs(v.roof,v.along,v.dist,a).forEach(([d0,d1])=>{arr.push(B(v.pt(d0,a),v.y(d0)+0.03),B(v.pt(d1,a),v.y(d1)+0.03));});if(arr.length)lines(arr,new THREE.LineBasicMaterial({color:0x4f6f87,transparent:true,opacity:0.5}));});}
   // ---- murs par façade et par travée (bardé / ouvert / porte)
   const PP=(S,t)=>[S.p[0]+(S.q[0]-S.p[0])*t,S.p[1]+(S.q[1]-S.p[1])*t];
   M.sides.forEach(S=>{let tr=null;if(M.vs.length>1){const f=M.vs[0].dist,fp=f(S.p),fq=f(S.q);if(fp*fq<0)tr=fp/(fp-fq);}
@@ -441,7 +460,7 @@ function build(M,mm){const off=LS*1.5,ph=0.2,pw=0.12,B=(p,y)=>V(p[0],y,p[1]);
   // ---- pannes (+ cassure)
   M.vs.forEach(v=>{const cass=Number(st.vers[M.type][v.key].cass)||0;v.n.c.forEach((s,i)=>{const ds=v.sd(s);if(ds<-1e-6)return;const yv=v.y(ds)-ph/2-0.03;
     segs(v.roof,v.dist,v.along,Math.max(ds,1e-3)).forEach(([a0,a1],si)=>{const p=v.pt(ds,a0),q=v.pt(ds,a1);beam(B(p,yv),B(q,yv),pw,ph,mm.pan);
-      if(si===0)label('P'+(i+1),B(v.pt(ds,a1+off*0.5),yv+ph),'#b55d0c',0.8);
+      if(si===0&&$('#oPente').checked)label('P'+(i+1),B(v.pt(ds,a1+off*0.5),yv+ph),'#b55d0c',0.8);
       if(cass===i+1){dashed(B(p,v.y(ds)+0.06),B(q,v.y(ds)+0.06),0xc62828);label('cassure',B(v.pt(ds,(a0+a1)/2),v.y(ds)+LS*0.7),'#c62828',0.9,true);}});});});
   // ---- faîtage
   const v0=M.vs[0],rid=v0.ridge?segs(M.P,v0.dist,v0.along,0):segs(M.P,v0.dist,v0.along,0.001);
@@ -461,14 +480,13 @@ function build(M,mm){const off=LS*1.5,ph=0.2,pw=0.12,B=(p,y)=>V(p[0],y,p[1]);
   // ---- noms des versants
   M.vs.forEach(v=>{let al=0,n=0;v.poly.forEach(p=>{al+=v.along(p);n++;});al/=n;const ds=v.wallDist*0.5;label(v.name,B(v.pt(ds,al),v.y(ds)+LS*0.9),'#1d6b4f',1.1,true);});
   // ---- cotes le long de la pente : détail au pignon de départ, totaux à l'autre pignon
-  M.vs.forEach(v=>{let am=Infinity,ax=-Infinity;v.roof.forEach(p=>{am=Math.min(am,v.along(p));ax=Math.max(ax,v.along(p));});const n=v.n,inp=st.vers[M.type][v.key];
+  M.vs.forEach(v=>{let am=Infinity,ax=-Infinity;v.roof.forEach(p=>{am=Math.min(am,v.along(p));ax=Math.max(ax,v.along(p));});const n=v.n,inp=st.vers[M.type][v.key];const pe=v.pt(v.wallDist,am-off*0.4);dim(B(pe,0),B(pe,v.y(v.wallDist)),'h '+f2(v.y(v.wallDist)),'#2c4a8a');if(!$('#oPente').checked)return;
     const P3=(s,lev,lift)=>{const ds=v.sd(Math.min(s,n.R+0.5)),p=v.pt(ds,lev>0?am-off*lev:ax-off*lev);return B(p,v.y(ds)+lift);};
     let prev=0;n.c.forEach((s,i)=>{dim(P3(prev,1,0.12),P3(s,1,0.12),f2(num(inp.pans[i])),'#b55d0c');prev=s;});
     if(isFinite(n.last)&&n.last>0)dim(P3(prev,1,0.12),P3(prev+n.last,1,0.12),f2(n.last),'#7a3d06');
     if(n.deb>0)dim(P3(0,1.9,0.12),P3(n.deb,1.9,0.12),'débord '+f2(n.deb),'#6a1b9a');
     if(n.tD>0)dim(P3(0,-2,0.12),P3(n.tD,-2,0.12),'début faîtage '+f2(n.tD),'#1d2a24');
-    if(n.tH>0)dim(P3(0,-3,0.12),P3(n.tH,-3,0.12),'haut faîtage '+f2(n.tH),'#1d2a24');
-    const pe=v.pt(v.wallDist,am-off*0.4);dim(B(pe,0),B(pe,v.y(v.wallDist)),'h '+f2(v.y(v.wallDist)),'#2c4a8a');});
+    if(n.tH>0)dim(P3(0,-3,0.12),P3(n.tH,-3,0.12),'haut faîtage '+f2(n.tH),'#1d2a24');});
   const am0=M.emin;if(v0.ridge){const p=v0.pt(0,am0-off*2.9);dim(B(p,0),B(p,v0.hTop),'faîtage '+f2(v0.hTop),'#2c4a8a');}
   else{const p=v0.pt(0,am0-off*0.4);dim(B(p,0),B(p,v0.hTop),'h '+f2(v0.hTop),'#2c4a8a');}
   if(M.type==='mono')dim(B(v0.pt(0,am0-off*2.9),0.05),B(v0.pt(v0.wallDist,am0-off*2.9),0.05),'Largeur '+f2(M.Wd),'#1d2a24');
@@ -480,13 +498,12 @@ function build(M,mm){const off=LS*1.5,ph=0.2,pw=0.12,B=(p,y)=>V(p[0],y,p[1]);
   if(M.loc){const L=M.loc,c=L.c,n=L.n,d=L.dir,ang=Math.atan2(d[1],d[0]);const cx=c[0]+n[0]*(L.gap+L.P/2),cz=c[1]+n[1]*(L.gap+L.P/2);
     const box=new THREE.Mesh(new THREE.BoxGeometry(L.L,L.Hh,L.P),mm.loc);box.position.set(cx,L.Hh/2,cz);box.rotation.y=-ang;grp.add(box);
     const eg=new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry),mm.edge);eg.position.copy(box.position);eg.rotation.copy(box.rotation);grp.add(eg);
-    label('Local technique',V(cx,L.Hh+LS*0.8,cz),'#8a6d3b',1,true);
+    label('Local technique · câble '+f2(L.total)+' m',V(cx,L.Hh+LS*0.9,cz),'#8a6d3b',1,true);
     const o=0.08,w0=V(c[0]+n[0]*o,L.top-0.05,c[1]+n[1]*o),w1=V(c[0]+n[0]*o,L.ent,c[1]+n[1]*o),w2=V(c[0]+n[0]*L.gap,L.ent,c[1]+n[1]*L.gap);
     cyl(w0,w1,0.06,mm.cab);cyl(w1,w2,0.06,mm.cab);const sx=d[0]*0.6,sz=d[1]*0.6;
     dim(w0.clone().add(V(sx,0,sz)),w1.clone().add(V(sx,0,sz)),'descente '+f2(L.desc),'#c62828',true);
     dim(w1.clone().add(V(-sx,-0.25,-sz)),w2.clone().add(V(-sx,-0.25,-sz)),f2(L.gap),'#c62828',true);
-    dim(V(w2.x-sx*1.6,0,w2.z-sz*1.6),V(w2.x-sx*1.6,L.ent,w2.z-sz*1.6),f2(L.ent),'#c62828',true);
-    label('Câble : '+f2(L.total)+' m',V(c[0]+n[0]*(L.gap*0.5)+sx*2.6,L.top*0.55,c[1]+n[1]*(L.gap*0.5)+sz*2.6),'#c62828',1.1,true);}
+    dim(V(w2.x-sx*1.6,0,w2.z-sz*1.6),V(w2.x-sx*1.6,L.ent,w2.z-sz*1.6),f2(L.ent),'#c62828',true);}
   // ---- rose des vents (toujours affichée)
   let x0=Infinity,z0=Infinity,x1=-Infinity,z1=-Infinity;M.P.forEach(p=>{x0=Math.min(x0,p[0]);z0=Math.min(z0,p[1]);x1=Math.max(x1,p[0]);z1=Math.max(z1,p[1]);});
   const Rr=Math.max(1.2,Math.max(x1-x0,z1-z0)*0.09),cx=x1+Rr*2.2+off*2,cz=z0-Rr*1.2,N=northVec(),E=[-N[1],N[0]],y0=0.03;
@@ -499,11 +516,12 @@ function build(M,mm){const off=LS*1.5,ph=0.2,pw=0.12,B=(p,y)=>V(p[0],y,p[1]);
 // ================================================================ récapitulatif (écran + PDF)
 function recap(){const M=model||computeModel(),t=st.type,R={dims:[],vers:[],trav:[],fac:[],loc:[]};const deg=s=>Math.atan(s)*180/Math.PI;
   R.dims.push(['Type',TYPES[t]],['Faîtage',FAIT[st.fait].replace('Faîtage ','')]);
-  if(t==='mono'){R.dims.push(['Largeur (mur à mur)',f2(num(st.mono.W))+' m'],['Hauteur mur bas',f2(num(st.mono.h1))+' m']);if(M.ok)R.dims.push(['Hauteur mur haut (calculée)',f2(M.h2)+' m']);}
-  else if(t==='bi'){R.dims.push(['Largeur (mur à mur)',f2(num(st.bi.W))+' m']);if(M.ok){R.dims.push(['Mur '+M.vs[0].name.replace('Versant ','côté '),f2(M.hA)+' m'],['Mur '+M.vs[1].name.replace('Versant ','côté '),f2(M.hB)+' m'],['Faîtage : hauteur (calculée)',f2(M.yr)+' m'],['Faîtage à … du mur '+M.vs[0].name.replace('Versant ',''),f2(M.zr)+' m'],['Faîtage à … du mur '+M.vs[1].name.replace('Versant ',''),f2(M.Wd-M.zr)+' m']);}}
-  else{const P=st.irr.pts;P.forEach((p,i)=>{const q=P[(i+1)%P.length];R.dims.push(['Côté C'+(i+1),f2(Math.hypot(q[0]-p[0],q[1]-p[1]))+' m']);});R.dims.push(['Hauteur des murs',f2(num(st.irr.h))+' m']);if(M.ok)R.dims.push(['Faîtage : hauteur (calculée)',f2(M.yr)+' m'],['Longueur le long du faîtage',f2(M.L)+' m']);}
+  if(t==='mono'){R.dims.push(['Largeur (mur à mur)',f2(num(st.mono.W))+' m'],['Hauteur mur bas',f2(num(st.mono.h1))+' m']);if(M.ok)R.dims.push(['Hauteur mur haut'+(M.h2calc?' (calculée)':''),f2(M.h2)+' m']);}
+  else if(t==='bi'){R.dims.push(['Largeur (mur à mur)',f2(num(st.bi.W))+' m']);if(M.ok){R.dims.push(['Mur '+M.vs[0].name.replace('Versant ','côté '),f2(M.hA)+' m'],['Mur '+M.vs[1].name.replace('Versant ','côté '),f2(M.hB)+' m'],['Faîtage : hauteur'+(M.hfcalc?' (calculée)':''),f2(M.yr)+' m'],['Faîtage à … du mur '+M.vs[0].name.replace('Versant ',''),f2(M.zr)+' m'],['Faîtage à … du mur '+M.vs[1].name.replace('Versant ',''),f2(M.Wd-M.zr)+' m']);}}
+  else{const P=st.irr.pts;P.forEach((p,i)=>{const q=P[(i+1)%P.length];R.dims.push(['Côté C'+(i+1),f2(Math.hypot(q[0]-p[0],q[1]-p[1]))+' m']);});R.dims.push(['Hauteur des murs',f2(num(st.irr.h))+' m']);if(M.ok)R.dims.push(['Faîtage : hauteur'+(M.hfcalc?' (calculée)':''),f2(M.yr)+' m'],['Longueur le long du faîtage',f2(M.L)+' m']);}
   if(M.ok)M.vs.forEach(v=>R.dims.push(['Pente '+v.name.replace('Versant ',''),f1(deg(v.slope))+'° ('+f1(v.slope*100)+' %)']));
-  R.dims.push(['Longueur (somme des travées)',f2(M.Ltr)+' m']);
+  if(M.ok&&t!=='irr')R.dims.push(['Longueur',f2(M.L)+' m']);R.dims.push(['Somme des travées',f2(M.Ltr)+' m']);if(M.prov)R.dims.unshift(['Toit','PROVISOIRE (cotes à vérifier)']);
+  {const ct=st.couv.type,cv=st.couv[ct];R.couv=[['Type',ct==='bac'?'Bac acier':'Panneau sandwich']];COUV[ct].forEach(([k,lab])=>{const m=plen(cv[k],k);if(isFinite(m))R.couv.push([k+' — '+lab,fLen(m)]);});}
   KEYS[t].forEach((k,i)=>{const v=st.vers[t][k],n=vNums(v),nm=M.vs[i]?M.vs[i].name:'Versant '+(i+1);const rows=[[nm,'']];
     rows.push(['Débord (bout de tôle → mur)',f2(n.deb)+' m']);v.pans.forEach((x,j)=>rows.push([panLab(j),f2(num(x))+' m (à '+f2(n.c[j])+' m du bas)']));
     rows.push(['Dernière panne → haut du faîtage',f2(n.last)+' m'],['Bas → début du faîtage',f2(n.tD)+' m'],['Bas → haut du faîtage',f2(n.tH)+' m']);if(v.cass)rows.push(['Cassure de pente','au niveau de P'+v.cass]);
@@ -514,12 +532,85 @@ function recap(){const M=model||computeModel(),t=st.type,R={dims:[],vers:[],trav
     if(M.loc){const L=M.loc;R.loc.push(['Façade',L.S.name],['Position',L.pc.lab==='Côté entier'?'milieu du côté':'milieu '+L.pc.lab.toLowerCase()],['Dimensions',f2(L.L)+' × '+f2(L.P)+' × '+f2(L.Hh)+' m'],['Écart avec le bâtiment',f2(L.gap)+' m'],
       ['Câble : descente',f2(L.desc)+' m'],['Câble : traversée',f2(L.gap)+' m'],['Câble : entrée local',f2(L.ent)+' m du sol'],['Câble : total',f2(L.total)+' m']);}}
   return R;}
-function updateInfo(){const M=model||computeModel();const wb=$('#warnbar');if(wb)wb.innerHTML=M.warns.length?M.warns.map(x=>`<div class="w">⚠️ ${H(x)}</div>`).join(''):'<div class="okk">✓ Tout est cohérent.</div>';
+function updateInfo(){const M=model||computeModel();
+  {const c=$('#calcH');if(c){let s='';if(M.ok){if(st.type==='mono')s=(M.h2calc?'Hauteur du mur haut calculée : ':'Hauteur du mur haut : ')+f2(M.h2)+' m';else if(st.type==='bi')s=(M.hfcalc?'Hauteur au faîtage calculée : ':'Hauteur au faîtage : ')+f2(M.yr)+' m — faîtage à '+f2(M.zr)+' m du mur '+M.vs[0].name.replace('Versant ','')+' et '+f2(M.Wd-M.zr)+' m du mur '+M.vs[1].name.replace('Versant ','');else s=(M.hfcalc?'Hauteur au faîtage calculée : ':'Hauteur au faîtage : ')+f2(M.yr)+' m';if(M.prov)s+=' (PROVISOIRE)';}c.textContent=s;}}
+  COUV[st.couv.type].forEach(([k])=>{const el=$('#cvn_'+k);if(el)el.textContent=fLen(plen(st.couv[st.couv.type][k],k));});const wb=$('#warnbar');if(wb)wb.innerHTML=M.warns.length?M.warns.map(x=>`<div class="w">⚠️ ${H(x)}</div>`).join(''):'<div class="okk">✓ Tout est cohérent.</div>';
   KEYS[st.type].forEach(k=>{const n=vNums(st.vers[st.type][k]);n.c.forEach((c,j)=>{const el=$(`#cu_${k}_${j}`);if(el)el.textContent=f2(c);});const el=$(`#cu_${k}_l`);if(el)el.textContent=f2(n.sumR);
     const ck=$('#chk_'+k);if(ck){const ok=n.tH>0&&Math.abs(n.sumR-n.tH)<=0.02;ck.className='chk '+(ok?'ok':'ko');ck.textContent=n.tH>0?(ok?'✓ Pannes + dernière panne = '+f2(n.sumR)+' m = bas → haut du faîtage':'⚠ Pannes + dernière panne = '+f2(n.sumR)+' m ≠ '+f2(n.tH)+' m'):'Remplis « bas → haut du faîtage »';}});
   const cb=$('#cable');if(cb){const L=M.loc;cb.innerHTML=L?`<table class="vt"><tr><td>Descente le long du mur (haut du mur → ${f2(L.ent)} m)</td><td class="cu"><b>${f2(L.desc)}</b></td></tr><tr><td>Traversée jusqu’au local</td><td class="cu"><b>${f2(L.gap)}</b></td></tr><tr class="tot"><td><b>Longueur totale du passage</b></td><td class="cu"><b>${f2(L.total)} m</b></td></tr></table>`:'';}
   const i=$('#info');if(!i)return;const R=recap();const tb=rows=>'<table>'+rows.map(([a,b])=>`<tr><td>${H(a)}</td><td>${H(b)}</td></tr>`).join('')+'</table>';
-  i.innerHTML=tb(R.dims)+(R.fac.length?'<h3>Façades</h3>'+tb(R.fac):'')+(R.loc.length?'<h3>Local technique</h3>'+tb(R.loc):'');}
+  i.innerHTML=tb(R.dims)+'<h3>Couverture</h3>'+tb(R.couv)+(R.fac.length?'<h3>Façades</h3>'+tb(R.fac):'')+(R.loc.length?'<h3>Local technique</h3>'+tb(R.loc):'');}
+
+// ================================================================ COUVERTURE (bac acier / panneau sandwich)
+const COUV={bac:[['g','hauteur de la nervure'],['h','largeur sur plusieurs nervures'],['i','entraxe des nervures'],['j','largeur du haut de la nervure'],['k','largeur du bas de la nervure']],
+  pan:[['a','épaisseur du panneau'],['b','hauteur de la nervure'],['c','largeur sur plusieurs nervures'],['d','entraxe des nervures'],['e','largeur du haut de la nervure'],['f','largeur du bas de la nervure']]};
+const CMDEF={g:1,i:1,j:1,k:1,a:1,b:1,d:1,e:1,f:1};
+function plen(v,k){const s=String(v==null?'':v).trim().toLowerCase().replace(',','.').replace(/\s/g,'');const x=parseFloat(s);if(!isFinite(x))return NaN;if(/mm$/.test(s))return x/1000;if(/cm$/.test(s))return x/100;if(/m$/.test(s))return x;if(CMDEF[k])return x/100;return x>10?x/100:x;}
+const fLen=m=>isFinite(m)?(m<1?f1(m*100)+' cm':f2(m)+' m'):'';
+function couvSpacing(){const c=st.couv;return c.type==='bac'?plen(c.bac.i,'i'):plen(c.pan.d,'d');}
+function drawProfile(cv,W,Hh){const dpr=W?1:(window.devicePixelRatio||1);const r=W?{width:W,height:Hh}:cv.getBoundingClientRect();cv.width=Math.max(1,Math.round(r.width*dpr));cv.height=Math.max(1,Math.round(r.height*dpr));const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  const w=r.width,h=r.height,ct=st.couv.type,v=st.couv[ct],pan=ct==='pan';g.fillStyle='#fff';g.fillRect(0,0,w,h);
+  const L=k=>{const m=plen(v[k],k);return isFinite(m)?k+' = '+fLen(m):k;};
+  const base=h*(pan?0.55:0.62),top=h*0.36,x0=26,x1=w-26,sp=(x1-x0-40)/3,bw=sp*0.17,tw=sp*0.06,cx=k=>x0+20+k*sp;
+  g.strokeStyle=pan?'#1d2a24':'#2c4a8a';g.lineWidth=2;g.beginPath();g.moveTo(x0,base);for(let k=0;k<4;k++){const c=cx(k);g.lineTo(c-bw,base);g.lineTo(c-tw,top);g.lineTo(c+tw,top);g.lineTo(c+bw,base);}g.lineTo(x1,base);g.stroke();
+  if(pan){const tk=h*0.2;g.strokeStyle='#1d2a24';g.setLineDash([5,3]);g.beginPath();g.moveTo(x0,base+tk);g.lineTo(x1,base+tk);g.stroke();g.setLineDash([]);g.fillStyle='rgba(232,200,120,.25)';g.fillRect(x0,base,x1-x0,tk);}
+  const red='#c62828';const arr=(ax,ay,bx,by,txt,tx,ty)=>{g.strokeStyle=red;g.fillStyle=red;g.lineWidth=1.2;g.beginPath();g.moveTo(ax,ay);g.lineTo(bx,by);g.stroke();
+    const t=(px,py,ang)=>{g.beginPath();g.moveTo(px,py);g.lineTo(px-6*Math.cos(ang-0.4),py-6*Math.sin(ang-0.4));g.lineTo(px-6*Math.cos(ang+0.4),py-6*Math.sin(ang+0.4));g.fill();};const a=Math.atan2(by-ay,bx-ax);t(bx,by,a);t(ax,ay,a+Math.PI);
+    const X=tx==null?(ax+bx)/2:tx,Yy=ty==null?(ay+by)/2:ty;g.font='bold 12px Arial';g.textAlign='center';g.textBaseline='middle';const tw2=g.measureText(txt).width+6;g.fillStyle='rgba(255,255,255,.9)';g.fillRect(X-tw2/2,Yy-8,tw2,16);g.fillStyle=red;g.fillText(txt,X,Yy);};
+  const K=pan?{H:'c',I:'d',J:'e',Kk:'f',G:'b'}:{H:'h',I:'i',J:'j',Kk:'k',G:'g'};
+  g.strokeStyle='#e0a0a0';g.lineWidth=1;[[cx(0),top-34],[cx(3),top-34],[cx(2),top-16],[cx(3),top-16]].forEach(([x,y])=>{g.beginPath();g.moveTo(x,top);g.lineTo(x,y);g.stroke();});
+  arr(cx(0),top-30,cx(3),top-30,L(K.H));arr(cx(2),top-12,cx(3),top-12,L(K.I));
+  arr(cx(1)-tw,top-6,cx(1)+tw,top-6,L(K.J),cx(1)+tw+44,top-14);arr(cx(1)-bw,base+14,cx(1)+bw,base+14,L(K.Kk),cx(1),base+28);
+  arr(cx(0)-bw-6,base,cx(0)-bw-6,top,L(K.G),cx(0)+bw+34,(base+top)/2+10);
+  if(pan){const tk=h*0.2;arr(x0+8,base,x0+8,base+tk,L('a'),x0+48,base+tk/2);}
+  g.fillStyle='#1d2a24';g.font='bold 13px Arial';g.textAlign='left';g.textBaseline='top';g.fillText(pan?'Panneau sandwich':'Bac acier',8,6);return cv;}
+
+// ================================================================ COUPE (vue du pignon, cotes de pente rangées)
+const cp={exp:false};
+function canvasCtx(cv){const r=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1;if(cv.width!==Math.round(r.width*dpr)||cv.height!==Math.round(r.height*dpr)){cv.width=Math.max(1,Math.round(r.width*dpr));cv.height=Math.max(1,Math.round(r.height*dpr));}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);return {g,w:r.width,h:r.height};}
+function drawCoupe(){if(st.tab!=='coupe'&&!cp.exp)return;const cv=$('#coupe'),{g,w,h}=canvasCtx(cv);g.fillStyle='#fff';g.fillRect(0,0,w,h);const M=model;
+  if(!M||!M.ok){g.fillStyle='#9aa8a0';g.font='15px Arial';g.textAlign='center';g.fillText('Complète les dimensions et les versants (à gauche).',w/2,h/2);return;}
+  const am=(M.emin+M.emax)/2;const parts=M.vs.map((v,i)=>{const sg=segs(v.poly,v.along,v.dist,am);const dmax=sg.length?Math.max(...sg.map(s=>s[1])):v.run;const eave=dmax>=v.run-0.01;
+    return {v,side:(M.vs.length===1||i===0)?-1:1,dmax,eave,dWall:Math.min(dmax,v.wallDist),dT:eave?dmax+v.dh:dmax};});
+  let u0=0,u1=0,yM=0;parts.forEach(p=>{const u=p.side*p.dT;u0=Math.min(u0,u);u1=Math.max(u1,u);yM=Math.max(yM,p.v.hTop);});
+  const padX=170,padT=210,padB=110;const s=Math.min((w-2*padX)/Math.max(u1-u0,1),(h-padT-padB)/Math.max(yM,1));const ox=w/2-(u0+u1)/2*s,oy=h-padB;
+  const X=u=>ox+u*s,Y=y=>oy-y*s;const P2=(p,ds)=>[X(p.side*ds),Y(p.v.y(ds))];
+  g.strokeStyle='#8a6d3b';g.lineWidth=2;g.beginPath();g.moveTo(X(u0)-60,oy);g.lineTo(X(u1)+60,oy);g.stroke();
+  const txt=(t,x,y,col,fs,ang,bg)=>{g.save();g.translate(x,y);if(ang){let a=ang;if(a>Math.PI/2)a-=Math.PI;if(a<-Math.PI/2)a+=Math.PI;g.rotate(a);}g.font='bold '+(fs||12)+'px Arial';g.textAlign='center';g.textBaseline='middle';const tw=g.measureText(t).width+6;if(bg!==false){g.fillStyle='rgba(255,255,255,.92)';g.fillRect(-tw/2,-8,tw,16);}g.fillStyle=col||'#1d2a24';g.fillText(t,0,0.5);g.restore();return tw;};
+  const dline=(a,b,off,t,col,alt)=>{const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy);if(L<1)return;let nx=dy/L,ny=-dx/L;if(ny>0){nx=-nx;ny=-ny;}const ux=dx/L,uy=dy/L,A=[a[0]+nx*off,a[1]+ny*off],B=[b[0]+nx*off,b[1]+ny*off];
+    g.strokeStyle=col;g.lineWidth=1;g.globalAlpha=0.4;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(A[0]+nx*4,A[1]+ny*4);g.moveTo(b[0],b[1]);g.lineTo(B[0]+nx*4,B[1]+ny*4);g.stroke();g.globalAlpha=1;
+    g.lineWidth=1.3;g.beginPath();g.moveTo(A[0],A[1]);g.lineTo(B[0],B[1]);g.stroke();[A,B].forEach(P=>{g.beginPath();g.moveTo(P[0]-nx*4+ux*4,P[1]-ny*4+uy*4);g.lineTo(P[0]+nx*4-ux*4,P[1]+ny*4-uy*4);g.stroke();});
+    g.font='bold 12px Arial';const tw=g.measureText(t).width+6,small=tw>L-4,fs=small?10.5:12,lift=(small&&alt)?13:0;txt(t,(A[0]+B[0])/2+nx*(9+lift),(A[1]+B[1])/2+ny*(9+lift),col,fs,Math.atan2(dy,dx));};
+  const vdim=(x,y0,y1,t,col)=>{g.strokeStyle=col;g.lineWidth=1.2;g.beginPath();g.moveTo(x,y0);g.lineTo(x,y1);g.moveTo(x-5,y0);g.lineTo(x+5,y0);g.moveTo(x-5,y1);g.lineTo(x+5,y1);g.stroke();txt(t,x,(y0+y1)/2,col,12,-Math.PI/2);};
+  const hdim=(x0,x1,y,t,col)=>{g.strokeStyle=col;g.lineWidth=1.2;g.beginPath();g.moveTo(x0,y);g.lineTo(x1,y);g.moveTo(x0,y-5);g.lineTo(x0,y+5);g.moveTo(x1,y-5);g.lineTo(x1,y+5);g.stroke();txt(t,(x0+x1)/2,y,col,12);};
+  parts.forEach(p=>{const v=p.v,n=v.n,inp=st.vers[M.type][v.key];
+    const wx=X(p.side*p.dWall);g.strokeStyle='#1d2a24';g.lineWidth=5;g.beginPath();g.moveTo(wx,oy);g.lineTo(wx,Y(v.y(p.dWall)));g.stroke();
+    if(v.aw&&p.eave){const px=X(p.side*v.run);g.strokeStyle='#2c4a8a';g.lineWidth=3;g.beginPath();g.moveTo(px,oy);g.lineTo(px,Y(v.y(v.run)));g.stroke();txt('poteau',px,oy+14,'#2c4a8a',11);}
+    const a=P2(p,p.dT),b=P2(p,0);g.strokeStyle='#2c6fa3';g.lineWidth=4;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
+    if(!v.ridge){g.strokeStyle='#1d2a24';g.lineWidth=5;g.beginPath();g.moveTo(X(0),oy);g.lineTo(X(0),Y(v.hTop));g.stroke();}
+    const ux=b[0]-a[0],uy=b[1]-a[1],ul=Math.hypot(ux,uy)||1;let nx=uy/ul,ny=-ux/ul;if(ny<0){nx=-nx;ny=-ny;}
+    const cass=Number(inp.cass)||0;n.c.forEach((sv,i)=>{const ds=v.sd(sv);if(ds<-1e-6)return;const q=P2(p,ds);g.fillStyle='#e8862a';g.save();g.translate(q[0]+nx*7,q[1]+ny*7);g.rotate(Math.atan2(uy,ux));g.fillRect(-4,-6,8,12);g.restore();
+      txt('P'+(i+1),q[0]+nx*24,q[1]+ny*24,'#b55d0c',10.5,0,false);
+      if(cass===i+1){g.strokeStyle='#c62828';g.lineWidth=3;g.beginPath();g.moveTo(q[0]-nx*12,q[1]-ny*12);g.lineTo(q[0]+nx*12,q[1]+ny*12);g.stroke();txt('cassure',q[0]+nx*42,q[1]+ny*42,'#c62828',11);}});
+    const S=sv=>P2(p,v.sd(Math.min(sv,n.R+0.5)));let prev=0;n.c.forEach((sv,i)=>{dline(S(prev),S(sv),26,f2(num(inp.pans[i])),'#b55d0c',i%2===1);prev=sv;});
+    if(isFinite(n.last)&&n.last>0)dline(S(prev),S(prev+n.last),26,f2(n.last),'#7a3d06',n.c.length%2===1);
+    if(n.deb>0)dline(S(0),S(n.deb),60,'débord '+f2(n.deb),'#6a1b9a');
+    if(n.tD>0)dline(S(0),S(n.tD),90,'bas → début faîtage '+f2(n.tD),'#1d2a24');
+    if(n.tH>0)dline(S(0),S(n.tH),120,'bas → haut faîtage '+f2(n.tH),'#1d2a24');
+    txt(v.name,X(p.side*p.dWall*0.55),Y(M.vs[0].hTop)-188,'#1d6b4f',14);
+    vdim(X(p.side*p.dT)+p.side*40,oy,Y(v.y(p.dWall)),'mur '+f2(v.y(p.dWall)),'#2c4a8a');
+    if(v.aw&&p.eave)hdim(X(p.side*p.dWall),X(p.side*v.run),oy+34,'auvent '+f2(v.aw),'#b55d0c');});
+  const v0=M.vs[0],tx=X(0),ty=Y(v0.hTop);g.strokeStyle='#2c4a8a';g.setLineDash([5,4]);g.lineWidth=1;g.beginPath();g.moveTo(tx,oy);g.lineTo(tx,ty);g.stroke();g.setLineDash([]);
+  if(v0.ridge){txt('faîtage '+f2(v0.hTop),tx,(oy+ty)/2,'#2c4a8a',12,-Math.PI/2);g.fillStyle='#56626a';
+    if(st.fait==='boudin'){g.beginPath();g.arc(tx,ty-6,8,0,7);g.fill();}else if(st.fait==='vent'){g.fillRect(tx-16,ty-16,32,5);g.fillRect(tx-2,ty-12,4,8);}else{g.beginPath();g.moveTo(tx-22,ty+8);g.lineTo(tx,ty-4);g.lineTo(tx+22,ty+8);g.lineWidth=4;g.strokeStyle='#56626a';g.stroke();}
+    txt(FAIT[st.fait],tx,ty-160,'#3d474e',13);}
+  else vdim(tx+40,oy,ty,'mur '+f2(v0.hTop),'#2c4a8a');
+  if(M.type==='bi'){hdim(X(-M.zr),X(0),oy+60,f2(M.zr),'#2c4a8a');hdim(X(0),X(M.Wd-M.zr),oy+60,f2(M.Wd-M.zr),'#2c4a8a');hdim(X(-M.zr),X(M.Wd-M.zr),oy+86,'largeur '+f2(M.Wd),'#1d2a24');}
+  else if(M.type==='mono')hdim(X(-M.Wd),X(0),oy+60,'largeur '+f2(M.Wd),'#1d2a24');
+  else parts.forEach(p=>hdim(X(p.side*p.dWall),X(0),oy+60,f2(p.dWall),'#2c4a8a'));
+  g.fillStyle='#0f3d2e';g.font='bold 15px Arial';g.textAlign='left';g.textBaseline='top';g.fillText('Coupe vue du pignon',14,12);g.fillStyle='#5b6b63';g.font='12px Arial';g.fillText('Cotes de pente mesurées depuis le bout de la tôle, le long de la pente.',14,32);
+  if(M.prov){g.fillStyle='#c62828';g.font='bold 18px Arial';g.textAlign='center';g.fillText('TOIT PROVISOIRE — vérifie les cotes',w/2,62);}}
+function coupeImage(){const was=st.tab;cp.exp=true;const cv=$('#coupe'),vis=cv.style.visibility;cv.style.visibility='visible';drawCoupe();const r=cv.getBoundingClientRect(),u=cv.toDataURL('image/jpeg',0.92);cp.exp=false;cv.style.visibility=vis;if(was==='coupe')drawCoupe();return {u,w:r.width,h:r.height};}
 
 // ================================================================ image et PDF
 function snapshot(W,Hh,type){const cv=renderer.domElement,ow=cv.width,oh=cv.height,pr=renderer.getPixelRatio(),asp=camera.aspect;
@@ -527,8 +618,8 @@ function snapshot(W,Hh,type){const cv=renderer.domElement,ow=cv.width,oh=cv.heig
   renderer.setPixelRatio(pr);renderer.setSize(ow/pr,oh/pr,false);camera.aspect=asp;camera.updateProjectionMatrix();renderer.render(scene,camera);return url;}
 function stamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
 function dl(url,name){const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),500);}
-function saveImg(){if(!ok3d||!model||!model.ok){alert('Complète d’abord la forme et les versants.');return;}if(st.tab==='plan'){dl($('#plan').toDataURL('image/png'),'batiment-plan-'+stamp()+'.png');return;}dl(snapshot(1920,1080),'batiment-3d-'+stamp()+'.png');}
-const pdfTxt=s=>String(s).replace(/→/g,'>').replace(/↔/g,'-').replace(/[—–]/g,'-').replace(/[’]/g,"'").replace(/…/g,'...').replace(/[✓≠]/g,'');
+function saveImg(){if(!ok3d||!model||!model.ok){alert('Complète d’abord la forme et les versants.');return;}if(st.tab==='plan'){dl($('#plan').toDataURL('image/png'),'batiment-plan-'+stamp()+'.png');return;}if(st.tab==='coupe'){dl($('#coupe').toDataURL('image/png'),'batiment-coupe-'+stamp()+'.png');return;}dl(snapshot(1920,1080),'batiment-3d-'+stamp()+'.png');}
+const pdfTxt=s=>String(s).replace(/⚠/g,'').replace(/→/g,'>').replace(/↔/g,'-').replace(/[—–]/g,'-').replace(/[’]/g,"'").replace(/…/g,'...').replace(/[✓≠]/g,'');
 function planImage(){const was=st.tab,keep={s:pv.s,ox:pv.ox,oy:pv.oy,f:pv.fitted,m:pv.mouse};st.tab='plan';const cv=$('#plan'),vis=cv.style.visibility;cv.style.visibility='visible';pv.mouse=null;pv.exp=true;fitPlan();drawPlan();pv.exp=false;
   const r=cv.getBoundingClientRect(),u=cv.toDataURL('image/jpeg',0.92);pv.s=keep.s;pv.ox=keep.ox;pv.oy=keep.oy;pv.fitted=keep.f;pv.mouse=keep.m;st.tab=was;cv.style.visibility=vis;if(was==='plan')drawPlan();else $('#banner').style.display='none';return {u,w:r.width,h:r.height};}
 function savePdf(){if(!ok3d||!model||!model.ok){alert('Complète d’abord la forme et les versants.');return;}if(!window.jspdf){alert('Le PDF n’a pas pu se charger. Vérifie la connexion internet.');return;}
@@ -543,18 +634,21 @@ function savePdf(){if(!ok3d||!model||!model.ok){alert('Complète d’abord la fo
   head('Bâtiment');R.dims.forEach(([a,b])=>line(a,b));
   R.vers.forEach((rows,i)=>{if(i===0&&ci===0)nextCol();else y+=3;head(rows[0][0]+' (le long de la pente)');rows.slice(1).forEach(([a,b])=>line(a,b));});
   y+=3;head('Travées');R.trav.slice(1).forEach(([a,b])=>line(a,b));
+  y+=3;head('Couverture');R.couv.forEach(([a,b])=>line(a,b));
   if(R.fac.length){y+=3;head('Façades');R.fac.forEach(([a,b])=>line(a,b));}
   if(R.loc.length){y+=3;head('Local technique et câble');R.loc.forEach(([a,b])=>line(a,b));}
   if(model.warns.length){y+=3;head('À vérifier');model.warns.forEach(w=>doc.splitTextToSize(pdfTxt(w),cols[ci].w).forEach(l=>line(l,'')));}
+  const cu=coupeImage();doc.addPage();doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(15,61,46);doc.text('Coupe vue du pignon',10,13);{const k2=Math.min(277/cu.w,(R.couv.length>1?130:182)/cu.h);doc.addImage(cu.u,'JPEG',10,18,cu.w*k2,cu.h*k2);}
+  if(R.couv.length>1){const pc=document.createElement('canvas');drawProfile(pc,900,230);doc.setFontSize(11);doc.text('Couverture',10,154);doc.addImage(pc.toDataURL('image/jpeg',0.92),'JPEG',10,157,150,38.3);}
   const pl=planImage();doc.addPage();doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(15,61,46);doc.text('Plan vu de dessus',10,13);const k=Math.min(277/pl.w,182/pl.h);doc.addImage(pl.u,'JPEG',10,18,pl.w*k,pl.h*k);
   doc.save('batiment-3d-'+stamp()+'.pdf');}
 
 // ================================================================ onglets et événements
-function setTab(t){st.tab=t;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));$('#v3d').style.visibility=t==='3d'?'visible':'hidden';$('#plan').style.visibility=t==='plan'?'visible':'hidden';
-  ['#l1','#l2','#bFit'].forEach(s=>$(s).style.display=t==='3d'?'':'none');planTools();resize();if(t==='plan'){if(!pv.fitted)fitPlan();drawPlan();}else $('#banner').style.display='none';}
+function setTab(t){st.tab=t;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));$('#v3d').style.visibility=t==='3d'?'visible':'hidden';$('#plan').style.visibility=t==='plan'?'visible':'hidden';$('#coupe').style.visibility=t==='coupe'?'visible':'hidden';
+  ['#l1','#l2','#l3','#bFit'].forEach(s=>$(s).style.display=t==='3d'?'':'none');planTools();resize();if(t==='plan'){if(!pv.fitted)fitPlan();drawPlan();}else $('#banner').style.display='none';if(t==='coupe')drawCoupe();}
 let tm=0;const later=()=>{clearTimeout(tm);tm=setTimeout(()=>rebuild(false),160);};
 document.addEventListener('input',e=>{const el=e.target;if(el.id==='lenEdit')return;
-  if(el.dataset.k){setK(el.dataset.k,el.value);if(el.classList.contains('num'))el.classList.toggle('bad',!isFinite(num(el.value)));if(el.tagName==='SELECT'){renderSide();rebuild(false);}else later();}
+  if(el.dataset.k){setK(el.dataset.k,el.value);if(el.classList.contains('num')&&!el.classList.contains('cvi')&&!/\.(L|h2|hf)$/.test(el.dataset.k))el.classList.toggle('bad',!isFinite(num(el.value)));if(el.classList.contains('cvi')){const pf=$('#prof');if(pf)drawProfile(pf);}if(el.tagName==='SELECT'){renderSide();rebuild(false);}else later();}
   else if(el.dataset.l){getK(el.dataset.l)[+el.dataset.i]=el.value;el.classList.toggle('bad',!isFinite(num(el.value)));later();}
   else if(el.dataset.fl!=null){facGet(+el.dataset.fl,+el.dataset.p).l=el.value;later();}else if(el.dataset.fh!=null){facGet(+el.dataset.fh,+el.dataset.p).h=el.value;later();}});
 document.addEventListener('change',e=>{const el=e.target;
@@ -563,12 +657,13 @@ document.addEventListener('change',e=>{const el=e.target;
   else if(el.dataset.side!=null){setSideLen(+el.dataset.side,num(el.value));}
   else if(el.dataset.l&&el.dataset.l.startsWith('trav')){renderSide();rebuild(true);}
   else if(el.dataset.k&&el.tagName!=='SELECT'&&/^(mono|bi|irr)\./.test(el.dataset.k)){renderSide();rebuild(true);if(st.tab==='plan')fitPlan();}
-  else if(el.id==='oCotes'||el.id==='oTransp')rebuild(false);});
+  else if(el.id==='oCotes'||el.id==='oTransp'||el.id==='oPente')rebuild(false);});
 document.addEventListener('click',e=>{const b=e.target.closest('button,h2[data-open]');if(!b)return;const d=b.dataset;
   if(d.tab){setTab(d.tab);return;}
   if(d.open){st.step=+d.open;renderSide();if(st.step===2&&st.type==='irr')setTab('plan');return;}
   if(d.t){st.type=d.t;pv.fitted=false;renderSide();rebuild(true);if(st.type==='irr')setTab('plan');else if(st.tab==='plan')fitPlan();return;}
   if(d.f){st.fait=d.f;renderSide();rebuild(false);return;}
+  if(d.cv){st.couv.type=d.cv;renderSide();rebuild(false);return;}
   if(d.padd){const v=getK(d.padd);v.pans.push(v.pans.length?v.pans[v.pans.length-1]:'1,50');renderSide();rebuild(false);return;}
   if(d.pdel){const v=getK(d.pdel);if(v.pans.length)v.pans.pop();if(Number(v.cass)>v.pans.length)v.cass='';renderSide();rebuild(false);return;}
   if(d.tadd){const a=st.trav[st.type];a.push(a[a.length-1]||'6');renderSide();rebuild(true);return;}
@@ -581,7 +676,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('button,h2[data-o
   if(b.id==='pRidge'){if(st.irr.mode==='draw'||st.irr.pts.length<3)return;pushUndo();st.irr.ridge=[];st.irr.mode='ridge';irrChanged();return;}
   if(b.id==='pUndo'){undo();return;}
   if(b.id==='bImg')saveImg();else if(b.id==='bPdf')savePdf();});
-window.addEventListener('resize',()=>{if(st.tab==='plan')drawPlan();});
+window.addEventListener('resize',()=>{if(st.tab==='plan')drawPlan();if(st.tab==='coupe')drawCoupe();const pf=$('#prof');if(pf)drawProfile(pf);});
 
 renderSide();init3d();setupPlan();setTab(st.tab);rebuild(true);
 </script>
