@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=1280">
 <meta name="robots" content="noindex,nofollow,noarchive">
 <title>Bâtiment 3D</title>
-<!-- Bâtiment 3D v6 — 09/11/2026 — saisie comme la feuille de prise de cotes (en-tête, bâtiment sur schéma, faîtage et travées, couverture, pannes, rampants A–R, compléments). Avant : v5 — pannes en mm, câble total sur la descente. Avant : v4 — Dimensions (largeur, longueur, hauteurs), toit provisoire, onglet Coupe, Couverture (bac / panneau). Avant : v3 — version PC : étapes, Plan / 3D, dessin à la souris, auvent, bardage, portes, local technique et câble. Rien n'est enregistré. -->
+<!-- Bâtiment 3D v7 — 10/11/2026 — auvent sans poteaux, auvent calculé tout seul, schéma des pannes dans le bon sens. Avant : v6 — saisie comme la feuille de prise de cotes (en-tête, bâtiment sur schéma, faîtage et travées, couverture, pannes, rampants A–R, compléments). Avant : v5 — pannes en mm, câble total sur la descente. Avant : v4 — Dimensions (largeur, longueur, hauteurs), toit provisoire, onglet Coupe, Couverture (bac / panneau). Avant : v3 — version PC : étapes, Plan / 3D, dessin à la souris, auvent, bardage, portes, local technique et câble. Rien n'est enregistré. -->
 <style>
 :root{--g:#0f3d2e;--g2:#1d6b4f;--bg:#eef1ee;--card:#fff;--line:#d5ddd7;--txt:#1d2a24;--mut:#5b6b63;--red:#c62828;--warn:#9a5b00;--wbg:#fff4e0;--ok:#1b7a3d}
 *{box-sizing:border-box}
@@ -189,29 +189,42 @@ const PROV=Math.tan(15*Math.PI/180);
 function computeModel(){const t=st.type,W=[],M={type:t,warns:W,vs:[]};const trv=st.trav[t];M.T=cum(trv);M.Ltr=sum(trv);
   if(trv.some(x=>!(num(x)>0)))W.push('Une largeur de travée est vide ou à zéro.');
   const ns={};KEYS[t].forEach(k=>ns[k]=vNums(st.vers[t][k]));if(t==='irr')KEYS.irr.forEach(k=>ns[k].aw=0);
-  const prov=msg=>{M.prov=true;W.unshift('Toit PROVISOIRE : '+msg);};
+  const prov=msg=>{M.prov=true;W.unshift('Toit PROVISOIRE : '+msg);};M.infos=[];
+  // 10/11/2026 : excédent des rampants (à plat) = auvent ; côté choisi pour garder le faîtage le plus près du milieu
+  const auvBi=(Wd,hA,hB,hf,A,B)=>{if(!(hf>0))return null;const rA=A.R-A.deb,rB=B.R-B.deb,dA=hf-hA,dB=hf-hB;if(!(dA>0&&dB>0&&rA>dA&&rB>dB))return null;
+    // le rampant sans auvent donne la place du faîtage ; le reste de l'autre rampant, ramené à plat, est l'auvent
+    const xA=Math.sqrt(rA*rA-dA*dA),xB=Math.sqrt(rB*rB-dB*dB);const opt=[];
+    {const z=Wd-xB;if(z>0.3&&z<Wd-0.3){const Lm=Math.hypot(z,dA),E=(rA-Lm)*z/Lm;if(E>0.15)opt.push({side:'A',E,z});}}
+    {const z=xA;if(z>0.3&&z<Wd-0.3){const Lm=Math.hypot(Wd-z,dB),E=(rB-Lm)*(Wd-z)/Lm;if(E>0.15)opt.push({side:'B',E,z});}}
+    if(!opt.length)return null;opt.sort((a,b)=>Math.abs(a.z-Wd/2)-Math.abs(b.z-Wd/2));const c=opt[0];return {side:c.side,E:c.E,z:c.z,zA:Wd-xB,zB:xA,all:opt};};
+  const auvMono=(Wd,h1,h2,n)=>{if(!(h2>h1))return null;const r=n.R-n.deb,Lm=Math.hypot(Wd,h2-h1);if(!(r>Lm))return null;const E=(r-Lm)*Wd/Lm;return E>0.15?E:null;};
   // longueur de couverture plus grande que le long pan = débord aux pignons
   const gable=(o,L)=>{const lc=num(o.LC);if(!(lc>0))return;if(lc<L-0.01){W.push(`La longueur de couverture (${f2(lc)} m) est plus petite que le long pan (${f2(L)} m).`);return;}const dg=(lc-L)/2;M.dg=dg;if(dg<0.005)return;M.vs.forEach(v=>{v.roof=v.roof.map(p=>p[0]<=1e-6?[p[0]-dg,p[1]]:p[0]>=L-1e-6?[p[0]+dg,p[1]]:p);});};
   {const q=Math.round(num(st.ti[t].qte));if(q>0&&trv.length&&q!==trv.length)W.push(`Infos travée : Qté = ${q}, mais ${trv.length} largeur${trv.length>1?'s':''} donnée${trv.length>1?'s':''}.`);}
   const lenOf=o=>{const Ln=num(o.L);if(Ln>0){if(M.Ltr>0&&Math.abs(M.Ltr-Ln)>0.05)W.push(`Les travées font ${f2(M.Ltr)} m au total, mais la longueur notée est ${f2(Ln)} m.`);return Ln;}return M.Ltr>0?M.Ltr:1;};
   if(t==='mono'){const Wd=num(st.mono.W),h1=num(st.mono.h1),h2i=num(st.mono.h2),n=ns.m;if(!(Wd>0&&h1>0)){W.push('Remplis la largeur et la hauteur du mur bas.');return M;}
+    if(!st.vers.mono.m.auv){const E=auvMono(Wd,h1,h2i,n);if(E){n.aw=E;M.auvAuto={key:'m',aw:E};}}
+    else{const r=n.R-n.deb,Lm=Math.hypot(Wd,h2i-h1);if(h2i>h1&&r>Lm){const E=(r-Lm)*Wd/Lm;if(E>0){M.auvCmp={key:'m',aw:E};if(Math.abs(E-n.aw)>0.1)W.push('Auvent mesuré '+f2(n.aw)+' m, mais d’après le rampant il fait '+f2(E)+' m : vérifie une des cotes.');}}}
     const runT=Wd+n.aw;let slope;
     if(h2i>0){if(h2i<=h1){prov('le mur haut doit être plus haut que le mur bas.');slope=PROV;}else slope=(h2i-h1)/Wd;}
     else{const Rt=n.R-n.deb;if(Rt>runT)slope=Math.sqrt(Rt*Rt-runT*runT)/runT;else{prov(`avec ces cotes, le toit (${f2(Rt)} m sans le débord) est plus court que la largeur${n.aw?' + l’auvent':''} (${f2(runT)} m). Note la hauteur du mur haut, ou corrige « Axe faîtage ».`);slope=PROV;}}
     const L=lenOf(st.mono);M.P=[[0,0],[L,0],[L,Wd],[0,Wd]];Object.assign(M,{Wd,h1,h2:h1+slope*Wd,h2calc:!(h2i>0)});
-    const hp=h1-slope*n.aw;if(n.aw&&hp<1)W.push('Les poteaux de l’auvent seraient très bas ('+f2(hp)+' m) : vérifie la largeur de l’auvent.');
+    const hp=h1-slope*n.aw;if(n.aw&&hp<1)W.push('Le bout de l’auvent serait très bas ('+f2(hp)+' m) : vérifie la largeur de l’auvent.');
     M.vs.push(mkV('m',[[0,-n.aw],[L,-n.aw],[L,Wd],[0,Wd]],[0,Wd],[1,0],[0,-1],runT,M.h2,hp,n,false));gable(st.mono,L);}
   else if(t==='bi'){const Wd=num(st.bi.W),hA=num(st.bi.hA),hB=num(st.bi.hB),hfi=num(st.bi.hf);if(!(Wd>0&&hA>0&&hB>0)){W.push('Remplis la largeur et les deux hauteurs de mur.');return M;}
     const A=ns.A,B=ns.B;let zr=NaN,yr=NaN;
+    {const mA=st.vers.bi.A.auv,mB=st.vers.bi.B.auv;if(!mA&&!mB){const c=auvBi(Wd,hA,hB,hfi,A,B);if(c){ns[c.side].aw=c.E;M.auvAuto={key:c.side,aw:c.E};M.zrFix=c.z;}}
+     else if(mA!==mB){const k=mA?'A':'B',m=ns[k].aw,a0=ns[k].aw;ns[k].aw=0;const c=auvBi(Wd,hA,hB,hfi,A,B);ns[k].aw=a0;if(c){const o=c.all.find(x=>x.side===k)||c;c.E=o.E;M.auvCmp={key:k,aw:c.E};M.zrFix=k==='A'?c.zA:c.zB;if(Math.abs(c.E-m)>0.1)W.push('Auvent mesuré '+f2(m)+' m, mais d’après les rampants il fait '+f2(c.E)+' m : vérifie une des cotes.');}}}
     if(A.R-A.deb>0&&B.R-B.deb>0){let rA=A.R-A.deb-A.aw,rB=B.R-B.deb-B.aw,c=null;for(let k=0;k<40;k++){c=circles(Wd,hA,hB,rA,rB);if(c.err)break;rA=(A.R-A.deb)*c.zr/(c.zr+A.aw);rB=(B.R-B.deb)*(Wd-c.zr)/(Wd-c.zr+B.aw);}
       if(!c.err&&c.zr>0.05&&c.zr<Wd-0.05){zr=c.zr;yr=c.yr;}}
+    if(hfi>0&&M.zrFix!=null&&M.zrFix>0.05&&M.zrFix<Wd-0.05)zr=M.zrFix;
     if(hfi>0){if(!isFinite(zr))zr=Wd/2;if(hfi<=Math.max(hA,hB)+0.05){prov('la hauteur au faîtage doit être plus grande que celle des murs.');yr=Math.max(hA,hB)+PROV*Wd/2;zr=Wd/2;}else yr=hfi;}
     else if(!isFinite(yr)){prov('avec ces cotes, les deux versants ne se rejoignent pas au faîtage. Note la hauteur au faîtage, ou corrige les cotes « Axe faîtage »'+(A.aw||B.aw?' (et la largeur de l’auvent)':'')+'.');zr=Wd/2;yr=Math.max(hA,hB)+PROV*Wd/2;}
     const L=lenOf(st.bi);M.P=[[0,0],[L,0],[L,Wd],[0,Wd]];Object.assign(M,{Wd,hA,hB,zr,yr,hfcalc:!(hfi>0)});
     const sA=(yr-hA)/zr,sB=(yr-hB)/(Wd-zr);
     M.vs.push(mkV('A',[[0,-A.aw],[L,-A.aw],[L,zr],[0,zr]],[0,zr],[1,0],[0,-1],zr+A.aw,yr,hA-sA*A.aw,A,true));
     M.vs.push(mkV('B',[[0,zr],[L,zr],[L,Wd+B.aw],[0,Wd+B.aw]],[0,zr],[1,0],[0,1],Wd-zr+B.aw,yr,hB-sB*B.aw,B,true));
-    M.vs.forEach(v=>{if(v.aw&&v.hEave<1)W.push(v.name+' : les poteaux de l’auvent seraient très bas ('+f2(v.hEave)+' m).');});gable(st.bi,L);}
+    M.vs.forEach(v=>{if(v.aw&&v.hEave<1)W.push(v.name+' : le bout de l’auvent serait très bas ('+f2(v.hEave)+' m).');});gable(st.bi,L);}
   else{const P=st.irr.pts;if(P.length<3||st.irr.mode==='draw'){W.push('Dessine le contour du bâtiment sur le plan (au moins 3 coins), puis ferme-le.');return M;}
     const h=num(st.irr.h),hfi=num(st.irr.hf);if(!(h>0)){W.push('Remplis la hauteur des murs.');return M;}
     if(st.irr.ridge.length<2){W.push('Place le faîtage : clique 2 points sur le plan.');return M;}
@@ -232,6 +245,7 @@ function computeModel(){const t=st.type,W=[],M={type:t,warns:W,vs:[]};const trv=
     if(!(n.tD>0))W.push(nm+' : remplis « Avant faîtière ».');
     const Rexp=n.deb+v.Rw;if(!M.prov&&n.tH>0&&Math.abs(n.tH-Rexp)>0.05)W.push(`${nm} : « Axe faîtage » = ${f2(n.tH)} m, mais avec ces dimensions le toit fait ${f2(Rexp)} m.`);
     const lp=n.c.length?n.c[n.c.length-1]:0;if(lp>Rexp+0.02)W.push(`${nm} : P${n.c.length} (à ${f2(lp)} m du bas) dépasse le haut du toit (${f2(Rexp)} m).`);});
+  if(M.auvAuto){const va=M.vs.find(x=>x.key===M.auvAuto.key);M.infos.push('🏗️ Auvent calculé tout seul : '+f2(M.auvAuto.aw)+' m à plat, '+(va?va.name.replace('Versant ','côté '):'')+', sans poteau (les pannes dépassent le dernier poteau). Si tu connais sa vraie longueur, coche « Auvent » dans les Compléments.');}
   const v0=M.vs[0];let emin=Infinity,emax=-Infinity;M.P.forEach(p=>{emin=Math.min(emin,v0.along(p));emax=Math.max(emax,v0.along(p));});Object.assign(M,{emin,emax,L:emax-emin,ok:true});
   if(t==='irr'&&M.Ltr>0&&Math.abs(M.Ltr-M.L)>0.05)W.push(`Les travées font ${f2(M.Ltr)} m au total, mais le bâtiment fait ${f2(M.L)} m le long du faîtage.`);
   M.sides=sidesOf(M);M.loc=locOf(M);return M;}
@@ -269,11 +283,17 @@ function svgMono(){return `<svg viewBox="0 0 420 290" class="sk"><defs><marker i
  <polygon points="40,240 220,240 220,110 40,150" fill="#fff" stroke="#1d2a24" stroke-width="2"/>
  <g stroke="#1d4ed8" stroke-width="1.4" marker-start="url(#ah)" marker-end="url(#ah)" fill="none"><line x1="40" y1="262" x2="220" y2="262"/><line x1="232" y1="256" x2="362" y2="186"/><line x1="26" y1="132" x2="156" y2="62"/><line x1="24" y1="240" x2="24" y2="150"/><line x1="206" y1="236" x2="206" y2="114"/></g>
 </svg>`;}
-function svgRampant(n){const xs=[];let x=40;for(let i=0;i<Math.min(Math.max(n,3),7);i++){x+=i===0?18:40;xs.push(x);}
- return `<svg viewBox="0 0 420 150" class="sk"><polygon points="20,120 400,120 380,40 40,40" fill="#f6efe2" stroke="#8a6d3b"/><line x1="40" y1="40" x2="380" y2="40" stroke="#1d2a24" stroke-width="3"/>
-  ${xs.map((x,i)=>`<line x1="${x}" y1="120" x2="${x+ (380-x)*0}" y2="40" stroke="#b55d0c" stroke-dasharray="3 3" transform="skewX(0)"/><text x="${x-4}" y="138" fill="#c62828" font-size="12" font-weight="700">${LET(i)}</text>`).join('')}
-  
-  <text x="300" y="34" fill="#1d4ed8" font-size="10" font-style="italic">Axe faîtage</text><text x="300" y="56" fill="#1d4ed8" font-size="10" font-style="italic">Avant faîtière</text><text x="150" y="112" fill="#5b6b63" font-size="10">bout de la tôle (bas du toit)</text></svg>`;}
+function svgRampant(n){/* 10/11/2026 : pannes parallèles au faîtage, empilées le long de la pente ; A = bout de tôle → P1 */
+ const tH=n&&n.tH>0?n.tH:(n&&n.c.length?n.c[n.c.length-1]*1.05:1),Y0=150,Y1=26,yy=s=>Y0-(Y0-Y1)*Math.min(1,Math.max(0,s/tH)),xl=y=>70+(Y0-y)*0.17,xr=y=>390-(Y0-y)*0.17;
+ const c=n&&n.c.length?n.c:[0.35,0.65].map(f=>f*tH);let h='<svg viewBox="0 0 430 176" class="sk"><polygon points="'+xl(Y0)+','+Y0+' '+xr(Y0)+','+Y0+' '+xr(Y1)+','+Y1+' '+xl(Y1)+','+Y1+'" fill="#f6efe2" stroke="#8a6d3b"/>';
+ h+='<line x1="'+xl(Y1)+'" y1="'+Y1+'" x2="'+xr(Y1)+'" y2="'+Y1+'" stroke="#1d2a24" stroke-width="4"/><text x="'+(xl(Y1)+6)+'" y="'+(Y1-6)+'" font-size="10" fill="#1d2a24" font-weight="700">faîtage</text>';
+ if(n&&n.tD>0){const yd=yy(n.tD);h+='<line x1="'+xl(yd)+'" y1="'+yd+'" x2="'+xr(yd)+'" y2="'+yd+'" stroke="#56626a" stroke-dasharray="5 3"/>';}
+ c.forEach(s=>{const y=yy(s);h+='<line x1="'+xl(y)+'" y1="'+y+'" x2="'+xr(y)+'" y2="'+y+'" stroke="#b55d0c" stroke-width="2.5"/>';});
+ let prev=Y0;c.forEach((s,i)=>{const y=yy(s),x=30;h+='<line x1="'+x+'" y1="'+prev+'" x2="'+x+'" y2="'+y+'" stroke="#c62828" stroke-width="1.3"/><line x1="'+(x-4)+'" y1="'+y+'" x2="'+(x+4)+'" y2="'+y+'" stroke="#c62828"/><text x="'+(x-16)+'" y="'+((prev+y)/2+4)+'" font-size="11" font-weight="700" fill="#c62828">'+LET(i)+'</text>';prev=y;});
+ h+='<line x1="26" y1="'+Y0+'" x2="34" y2="'+Y0+'" stroke="#c62828"/>';
+ h+='<g stroke="#1d4ed8" stroke-width="1.3"><line x1="410" y1="'+Y0+'" x2="410" y2="'+Y1+'"/><line x1="406" y1="'+Y1+'" x2="414" y2="'+Y1+'"/>'+(n&&n.tD>0?'<line x1="398" y1="'+Y0+'" x2="398" y2="'+yy(n.tD)+'"/><line x1="394" y1="'+yy(n.tD)+'" x2="402" y2="'+yy(n.tD)+'"/>':'')+'<line x1="394" y1="'+Y0+'" x2="414" y2="'+Y0+'"/></g>';
+ h+='<text x="300" y="'+(Y1-6)+'" font-size="10" font-style="italic" fill="#1d4ed8">Axe faîtage</text>'+(n&&n.tD>0?'<text x="300" y="'+(yy(n.tD)+12)+'" font-size="10" font-style="italic" fill="#1d4ed8">Avant faîtière</text>':'');
+ h+='<text x="'+(xl(Y0)+60)+'" y="'+(Y0+16)+'" font-size="10" fill="#5b6b63">bout de la tôle (gouttière)</text></svg>';return h;}
 const ORIC=['Nord','Nord-est','Est','Sud-est','Sud','Sud-ouest','Ouest','Nord-ouest'];
 function renderSide(){const sc=$('#side').scrollTop;const t=st.type;model=computeModel();const M=model;let h='',b='';const hd=st.head;
   // 1. en-tête
@@ -309,7 +329,7 @@ function renderSide(){const sc=$('#side').scrollTop;const t=st.type;model=comput
   b=`<p class="hint">Une fiche par rampant, comme le bas de la feuille. Distances en <b>mm</b>, en partant du <b>bout de la tôle</b> (A = bord bas → 1re panne).</p>`;
   KEYS[t].forEach((k,i)=>{const v=st.vers[t][k],p=`vers.${t}.${k}`,nm=M.vs[i]?M.vs[i].name.replace('Versant ',''):'';const n=vNums(v);
     b+=`<div class="vbox"><div class="row"><span><b>Rampant</b></span><select data-ram="${k}">${ORIC.map(o=>`<option value="${o.toLowerCase()}"${o.toLowerCase()===nm?' selected':''}>${o}</option>`).join('')}</select></div>
-     ${svgRampant(v.pans.length)}
+     ${svgRampant(n)}
      <div class="ramt"><label><i>Axe faîtage</i><input class="num" inputmode="decimal" data-k="${p}.tHaut" value="${H(v.tHaut)}"><b>m</b></label><label><i>Avant faîtière</i><input class="num" inputmode="decimal" data-k="${p}.tDeb" value="${H(v.tDeb)}"><b>m</b></label></div>
      <h3>Tableau annexe : distances pannes (mm)</h3><div class="pgrid">${Array.from({length:18},(x,j)=>`<label><b>${LET(j)}</b><input class="num" inputmode="numeric" data-pan="${p}" data-i="${j}" value="${H(v.pans[j]||'')}"></label>`).join('')}</div>
      <div class="chk" id="chk_${k}"></div></div>`;});
@@ -319,7 +339,7 @@ function renderSide(){const sc=$('#side').scrollTop;const t=st.type;model=comput
   KEYS[t].forEach((k,i)=>{const v=st.vers[t][k],p=`vers.${t}.${k}`,nm=M.vs[i]?M.vs[i].name:'Rampant '+(i+1);
     b+=`<div class="vbox"><h3>${H(nm)}</h3>${fld('Débord (bout de tôle → nu du mur)',p+'.deb')}
       <div class="row"><span>Cassure de pente</span><select data-k="${p}.cass"><option value="">aucune</option>${v.pans.map((x,j)=>`<option value="${j+1}"${String(v.cass)===String(j+1)?' selected':''}>au niveau de P${j+1}</option>`).join('')}</select></div>
-      ${t!=='irr'?`<div class="row"><span><label><input type="checkbox" data-kb="${p}.auv"${v.auv?' checked':''}> Auvent (le toit continue au-delà du mur, sur poteaux)</label></span></div>${v.auv?fld('Largeur de l’auvent au sol (mur → poteaux)',p+'.aw'):''}`:''}</div>`;});
+      ${t!=='irr'?`<div class="row"><span><label><input type="checkbox" data-kb="${p}.auv"${v.auv?' checked':''}> Auvent (le toit continue au-delà du dernier poteau, sans poteau au bout)</label></span></div>${v.auv?fld('Longueur de l’auvent à plat (dernier poteau → bout)',p+'.aw'):''}${M.auvAuto&&M.auvAuto.key===k?'<div class="calc">🏗️ Auvent calculé tout seul : '+f2(M.auvAuto.aw)+' m à plat (les pannes dépassent le dernier poteau). Coche « Auvent » si tu connais sa vraie longueur.</div>':''}${M.auvCmp&&M.auvCmp.key===k?'<div class="calc">Auvent calculé avec les rampants : '+f2(M.auvCmp.aw)+' m</div>':''}`:''}</div>`;});
   b+=`<h3>Détail des travées</h3><p class="hint">Rempli tout seul avec les infos travée ; tu peux corriger une travée ici.</p>`;st.trav[t].forEach((x,i)=>{b+=`<div class="row"><span>Travée ${i+1}</span><input class="num${num(x)>0?'':' bad'}" inputmode="decimal" data-l="trav.${t}" data-i="${i}" value="${H(x)}"><span class="unit">m</span></div>`;});
   b+=`<h3>Bardage, ouvertures et portes</h3>`;
   if(M.ok)M.sides.forEach(S=>{b+=`<div class="fac"><div class="ft"><span>${H(S.name)} — ${f2(S.L)} m</span><button class="btn s" type="button" data-fall="${S.i}" data-v="b">Tout bardé</button><button class="btn s" type="button" data-fall="${S.i}" data-v="o">Tout ouvert</button></div>`;
@@ -526,10 +546,10 @@ function build(M,mm){const off=LS*1.5,ph=Math.min(0.6,Math.max(0.05,(num(st.sec.
     label(FAIT[st.fait],top0.clone().multiplyScalar(0.72).add(top1.clone().multiplyScalar(0.28)).setY(v0.hTop+LS*1.3),'#3d474e',1,true);});
   // ---- portiques (+ poteaux d'auvent)
   const Ts=[0].concat(M.T);M.vs.forEach(v=>Ts.forEach(Tv=>{let a=M.emin+Tv;if(a>M.emax+1e-6)return;a=Math.max(M.emin+1e-3,Math.min(M.emax-1e-3,a));
-    segs(v.poly,v.along,v.dist,a).forEach(([d0,d1])=>{const ends=[d0,d1];if(v.aw)ends.push(v.wallDist);ends.forEach(dd=>{if(v.ridge&&dd<0.01)return;const p=v.pt(dd,a),sm=dd>v.wallDist+0.01;beam(B(p,0),B(p,v.y(dd)-0.28),sm?0.14:0.18,sm?0.14:0.18,mm.fr);});
+    segs(v.poly,v.along,v.dist,a).forEach(([d0,d1])=>{const ends=[d0,d1];if(v.aw)ends.push(v.wallDist);ends.forEach(dd=>{if(v.ridge&&dd<0.01)return;if(v.aw&&dd>v.wallDist+0.01)return;/* auvent : pas de poteau au bout */const p=v.pt(dd,a),sm=dd>v.wallDist+0.01;beam(B(p,0),B(p,v.y(dd)-0.28),sm?0.14:0.18,sm?0.14:0.18,mm.fr);});
       const p=v.pt(d0,a),q=v.pt(d1,a);beam(B(p,v.y(d0)-0.28),B(q,v.y(d1)-0.28),0.16,0.3,mm.fr);});}));
   M.vs.forEach(v=>{if(!v.aw)return;let al=0;v.poly.forEach(p=>al+=v.along(p));al/=v.poly.length;const ds=v.wallDist+v.aw/2;label('Auvent '+f2(v.aw)+' m',B(v.pt(ds,al),v.y(ds)-LS*1.2),'#b55d0c',1,true);
-    dim(B(v.pt(v.wallDist,M.emin-off*0.5),0.05),B(v.pt(v.run,M.emin-off*0.5),0.05),'auvent '+f2(v.aw),'#b55d0c');const pp=v.pt(v.run,M.emin-off*0.5);dim(B(pp,0),B(pp,v.hEave),'poteau '+f2(v.hEave),'#b55d0c');});
+    dim(B(v.pt(v.wallDist,M.emin-off*0.5),0.05),B(v.pt(v.run,M.emin-off*0.5),0.05),'auvent '+f2(v.aw),'#b55d0c');});
   // ---- noms des versants
   M.vs.forEach(v=>{let al=0,n=0;v.poly.forEach(p=>{al+=v.along(p);n++;});al/=n;const ds=v.wallDist*0.5;label(v.name,B(v.pt(ds,al),v.y(ds)+LS*0.9),'#1d6b4f',1.1,true);});
   // ---- cotes le long de la pente : détail au pignon de départ, totaux à l'autre pignon
@@ -579,7 +599,8 @@ function recap(){const M=model||computeModel(),t=st.type,R={dims:[],vers:[],trav
   KEYS[t].forEach((k,i)=>{const v=st.vers[t][k],n=vNums(v),nm=M.vs[i]?M.vs[i].name:'Versant '+(i+1);const rows=[[nm,'']];
     rows.push(['Débord (bout de tôle → mur)',f2(n.deb)+' m']);v.pans.forEach((x,j)=>rows.push([LET(j)+' — '+panLab(j),toMM(panM(x))+' mm (à '+toMM(n.c[j])+' mm du bas)']));
     rows.push(['Dernière panne → haut du faîtage',toMM(n.last)+' mm'],['Avant faîtière',f2(n.tD)+' m'],['Axe faîtage',f2(n.tH)+' m']);if(v.cass)rows.push(['Cassure de pente','au niveau de P'+v.cass]);
-    if(t!=='irr'&&v.auv){rows.push(['Auvent (mur → poteaux)',f2(num(v.aw))+' m']);if(M.vs[i])rows.push(['Hauteur des poteaux (calculée)',f2(M.vs[i].hEave)+' m']);}R.vers.push(rows);});
+    if(t!=='irr'&&v.auv){rows.push(['Auvent, sans poteau (dernier poteau → bout, à plat)',f2(num(v.aw))+' m']);if(M.auvCmp&&M.auvCmp.key===k)rows.push(['Auvent calculé avec les rampants',f2(M.auvCmp.aw)+' m']);}
+    if(M.auvAuto&&M.auvAuto.key===k)rows.push(['Auvent calculé (sans poteau, à plat)',f2(M.auvAuto.aw)+' m']);R.vers.push(rows);});
   R.trav.push(['Infos travée : Qté '+(st.ti[t].qte||'—')+' · largeur '+(st.ti[t].larg||'—'),'']);R.dims.push(['Sections pannes',(st.sec.h||'—')+' × '+(st.sec.w||'—')+' mm, '+({bois:'profil bois',mince:'profil mince',epaisse:'profil forte épaisseur'})[st.sec.type]]);if(model&&model.dg)R.dims.push(['Long. couverture (débord pignons '+f2(model.dg)+' m de chaque côté)',f2(num(st[t].LC))+' m']);
   R.trav.push([st.trav[t].length+' travée'+(st.trav[t].length>1?'s':''),'']);st.trav[t].forEach((v,i)=>R.trav.push(['Travée '+(i+1),f2(num(v))+' m']));
   if(M.ok){M.sides.forEach(S=>{const ex=S.pieces.filter(pc=>pc.s.s!=='b');if(!ex.length){R.fac.push([S.name,'bardé']);return;}if(ex.length===S.pieces.length&&ex.every(pc=>pc.s.s==='o')){R.fac.push([S.name,'ouvert']);return;}
@@ -589,7 +610,7 @@ function recap(){const M=model||computeModel(),t=st.type,R={dims:[],vers:[],trav
   return R;}
 function updateInfo(){const M=model||computeModel();
   {const c=$('#calcH');if(c){let s='';if(M.ok){if(st.type==='mono')s=(M.h2calc?'Hauteur du mur haut calculée : ':'Hauteur du mur haut : ')+f2(M.h2)+' m';else if(st.type==='bi')s=(M.hfcalc?'Hauteur au faîtage calculée : ':'Hauteur au faîtage : ')+f2(M.yr)+' m — faîtage à '+f2(M.zr)+' m du mur '+M.vs[0].name.replace('Versant ','')+' et '+f2(M.Wd-M.zr)+' m du mur '+M.vs[1].name.replace('Versant ','');else s=(M.hfcalc?'Hauteur au faîtage calculée : ':'Hauteur au faîtage : ')+f2(M.yr)+' m';if(M.prov)s+=' (PROVISOIRE)';}c.textContent=s;}}
-  COUV[st.couv.type].forEach(([k])=>{const el=$('#cvn_'+k);if(el)el.textContent=fLen(plen(st.couv[st.couv.type][k],k));});const wb=$('#warnbar');if(wb)wb.innerHTML=M.warns.length?M.warns.map(x=>`<div class="w">⚠️ ${H(x)}</div>`).join(''):'<div class="okk">✓ Tout est cohérent.</div>';
+  COUV[st.couv.type].forEach(([k])=>{const el=$('#cvn_'+k);if(el)el.textContent=fLen(plen(st.couv[st.couv.type][k],k));});const wb=$('#warnbar');if(wb)wb.innerHTML=(M.infos||[]).map(x=>`<div class="okk">${H(x)}</div>`).join('')+(M.warns.length?M.warns.map(x=>`<div class="w">⚠️ ${H(x)}</div>`).join(''):'<div class="okk">✓ Tout est cohérent.</div>');
   KEYS[st.type].forEach(k=>{const n=vNums(st.vers[st.type][k]);const ck=$('#chk_'+k);if(!ck)return;const tot=n.c.length?n.c[n.c.length-1]:0;
     if(!(n.tH>0)){ck.className='chk ko';ck.textContent='Remplis « Axe faîtage ».';return;}
     const ok=n.last>=-0.005;ck.className='chk '+(ok?'ok':'ko');ck.textContent=ok?'✓ '+n.c.length+' pannes · total '+toMM(tot)+' mm · dernière panne → axe faîtage : '+toMM(n.last)+' mm':'⚠ Les pannes ('+toMM(tot)+' mm) dépassent l’axe faîtage ('+f2(n.tH)+' m)';});
@@ -642,7 +663,6 @@ function drawCoupe(){if(st.tab!=='coupe'&&!cp.exp)return;const cv=$('#coupe'),{g
   const hdim=(x0,x1,y,t,col)=>{g.strokeStyle=col;g.lineWidth=1.2;g.beginPath();g.moveTo(x0,y);g.lineTo(x1,y);g.moveTo(x0,y-5);g.lineTo(x0,y+5);g.moveTo(x1,y-5);g.lineTo(x1,y+5);g.stroke();txt(t,(x0+x1)/2,y,col,12);};
   parts.forEach(p=>{const v=p.v,n=v.n,inp=st.vers[M.type][v.key];
     const wx=X(p.side*p.dWall);g.strokeStyle='#1d2a24';g.lineWidth=5;g.beginPath();g.moveTo(wx,oy);g.lineTo(wx,Y(v.y(p.dWall)));g.stroke();
-    if(v.aw&&p.eave){const px=X(p.side*v.run);g.strokeStyle='#2c4a8a';g.lineWidth=3;g.beginPath();g.moveTo(px,oy);g.lineTo(px,Y(v.y(v.run)));g.stroke();txt('poteau',px,oy+14,'#2c4a8a',11);}
     const a=P2(p,p.dT),b=P2(p,0);g.strokeStyle='#2c6fa3';g.lineWidth=4;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
     if(!v.ridge){g.strokeStyle='#1d2a24';g.lineWidth=5;g.beginPath();g.moveTo(X(0),oy);g.lineTo(X(0),Y(v.hTop));g.stroke();}
     const ux=b[0]-a[0],uy=b[1]-a[1],ul=Math.hypot(ux,uy)||1;let nx=uy/ul,ny=-ux/ul;if(ny<0){nx=-nx;ny=-ny;}
